@@ -379,7 +379,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                // The left end is the first visible pill: Inputs, or Wi-Fi on a box without inputs.
+                // The left end is the first visible pill (Wi-Fi).
                 ViewGroup bar = findViewById(R.id.topButtons);
                 for (int i = 0; i < bar.getChildCount(); i++) {
                     View c = bar.getChildAt(i);
@@ -387,7 +387,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 return false;
             }
-            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == R.id.btnSettings;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                // The right end is the last visible pill (Settings).
+                ViewGroup bar = findViewById(R.id.topButtons);
+                for (int i = bar.getChildCount() - 1; i >= 0; i--) {
+                    View c = bar.getChildAt(i);
+                    if (c.getVisibility() == View.VISIBLE) return c == v;
+                }
+            }
+            return false;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
@@ -624,8 +632,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
-        // The now playing card takes this spot while it shows; the focused tile and glow name the app.
-        heroName.setVisibility(cardShowing() ? View.INVISIBLE : View.VISIBLE);
         boolean changed = !label.contentEquals(heroName.getText());
 
         if (!heroShown) {
@@ -999,7 +1005,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void updateCard() {
         if (nowCard == null) return;
         boolean show = nowCard.hasTrack() && cardAllowed;
-        heroName.setVisibility(show ? View.INVISIBLE : View.VISIBLE);
         if (show && nowCard.getVisibility() != View.VISIBLE) {
             nowCard.setVisibility(View.VISIBLE);
             nowCard.post(() -> {
@@ -1014,7 +1019,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
-    /** Above the dock band, lined up with its left edge. */
+    /** Above the dock band, lined up with its left edge, leaving room between them for the app name. */
+    /** Space (dp) between the card and the dock band, where the focused app's name shows. */
+    private static final int HERO_ROOM = 96;
+
     private void positionNowCard() {
         if (nowCard == null || grid.getHeight() == 0 || nowCard.getHeight() == 0) return;
         int[] g = new int[2], r = new int[2];
@@ -1024,7 +1032,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Margins, not setX/setY: focus search goes by layout position and ignores translation.
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) nowCard.getLayoutParams();
         int left = Math.round(g[0] - r[0] + grid.getPaddingLeft() - 14 * density);
-        int top = Math.round(bandTop - 22 * density - nowCard.getHeight());
+        int top = Math.round(bandTop - HERO_ROOM * density - nowCard.getHeight());
         if (lp.leftMargin != left || lp.topMargin != top) {
             lp.gravity = Gravity.TOP | Gravity.START;
             lp.leftMargin = left;
@@ -1302,7 +1310,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max(width, panel.getMeasuredWidth()));
 
-        dropIn(popup, panel, anchor, Gravity.START);
+        dropIn(popup, panel, anchor, Gravity.END);
         rows.getChildAt(0).requestFocus();
     }
 

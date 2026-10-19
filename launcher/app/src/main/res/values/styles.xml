@@ -25,4 +25,11 @@
         <item name="android:clickable">true</item>
     </style>
     <style name="TopButton" parent="TopButtonBase" />
+    <!-- A round icon-only top button: the 22dp icon centred in a 42dp circle. -->
+    <style name="TopIconButton" parent="TopButton">
+        <item name="android:layout_width">42dp</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:drawablePadding">0dp</item>
+    </style>
 </resources>
