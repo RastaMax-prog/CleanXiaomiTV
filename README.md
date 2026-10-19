@@ -15,6 +15,8 @@
   </tr>
 </table>
 
+![The screensaver: photo of the day, time and weather top left](docs/screenshot-screensaver.jpg)
+
 **Built and tested on** a Xiaomi MiTV-MOOR2 (venom), Google TV / Android 11, MediaTek, 1080p.
 
 ## What it does
