@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
-    <!-- Today's photo of the day behind everything (home_photo), with a scrim so text stays readable. -->
+    <!-- Today's photo of the day behind everything (home_photo); its scrim is baked into the bitmap. -->
     <ImageView
         android:id="@+id/homePhoto"
         android:layout_width="match_parent"
@@ -13,12 +13,6 @@
         android:scaleType="centerCrop"
         android:alpha="0"
         android:importantForAccessibility="no" />
-
-    <View
-        android:id="@+id/homeScrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:alpha="0" />
 
     <!-- Ambient glow in the colour of the focused dock app. -->
     <View

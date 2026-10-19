@@ -234,9 +234,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.setBackgroundColor(cfg.backgroundColor);
         if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
         homePhotoOn = cfg.homePhoto && cfg.wallpaper == null;
-        findViewById(R.id.homeScrim).setBackground(new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x99000000, 0x14000000, 0x29000000, 0xD9000000}));
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         heroName = findViewById(R.id.heroName);
@@ -1053,6 +1050,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         new Thread(() -> {
             java.util.List<DailyPhoto.Photo> list = DailyPhoto.list(this);
             Bitmap bmp = list.isEmpty() ? null : DailyPhoto.load(this, list.get(0), w);
+            if (bmp != null) bakeScrim(bmp);
             Bitmap blurred = bmp == null ? null : Backdrop.blur(bmp, w, h);
             handler.post(() -> {
                 if (bmp == null) {
@@ -1062,8 +1060,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 DailyPhoto.Photo p = list.get(0);
                 ImageView photo = findViewById(R.id.homePhoto);
                 photo.setImageBitmap(bmp);
-                photo.animate().alpha(1f).setDuration(900).start();
-                findViewById(R.id.homeScrim).animate().alpha(1f).setDuration(900).start();
+                photo.animate().alpha(1f).setDuration(900).withEndAction(this::dropHiddenLayers).start();
                 backdrop.set(blurred, w, h);
                 ((TextView) findViewById(R.id.photoTitle)).setText(p.title);
                 TextView credit = findViewById(R.id.photoCredit);
@@ -1072,6 +1069,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 findViewById(R.id.photoCaption).animate().alpha(1f).setDuration(900).start();
             });
         }).start();
+    }
+
+    /**
+     * Darkens the top and bottom of the photo so the text reads, drawn into the bitmap once instead of
+     * as a full-screen layer the TV's GPU would blend on every frame.
+     */
+    private static void bakeScrim(Bitmap bmp) {
+        if (!bmp.isMutable()) return;
+        Canvas c = new Canvas(bmp);
+        Paint p = new Paint();
+        p.setShader(new android.graphics.LinearGradient(0, 0, 0, bmp.getHeight(),
+                new int[] {0x99000000, 0x14000000, 0x29000000, 0xD9000000}, null, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, bmp.getWidth(), bmp.getHeight(), p);
+    }
+
+    /**
+     * Once the photo covers the screen, nothing under it is ever seen: drop the window and root
+     * backgrounds and the ambient glow, three full-screen layers the GPU would otherwise fill and blend
+     * on every frame while focus moves.
+     */
+    private void dropHiddenLayers() {
+        getWindow().setBackgroundDrawable(null);
+        root.setBackground(null);
+        ambient.setVisibility(View.GONE);
     }
 
     /** A top button: liquid glass over the photo, solid white while focused. */
@@ -1316,7 +1337,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private PopupWindow glassPopup(View panel, int width) {
         // Over a photo the menus are glass too, with a darker veil than the buttons so every row reads.
-        if (backdrop.bitmap() != null) panel.setBackground(new GlassDrawable(panel, backdrop, 20 * density, density, 0x99000000));
+        if (backdrop.bitmap() != null) panel.setBackground(new GlassDrawable(panel, backdrop, 20 * density, density, 0x80000000));
         final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
         popup.setOutsideTouchable(true);

@@ -3,6 +3,8 @@ package com.gathin.tvhome;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.ComposeShader;
+import android.graphics.PorterDuff;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
@@ -23,13 +25,13 @@ final class GlassDrawable extends Drawable {
     private final View owner;
     private final Backdrop backdrop;
     private final float radius, density;
-    /** Darkening over the photo: light for buttons and cards, heavier for menus full of text. */
+    /** Extra darkening over the baked-in veil: none for buttons and cards, some for menus full of text. */
     private final int veil;
     private final RectF rect = new RectF();
     private final int[] loc = new int[2];
 
     GlassDrawable(View owner, Backdrop backdrop, float radiusPx, float density) {
-        this(owner, backdrop, radiusPx, density, 0x33000000);
+        this(owner, backdrop, radiusPx, density, 0);
     }
 
     GlassDrawable(View owner, Backdrop backdrop, float radiusPx, float density, int veil) {
@@ -54,36 +56,37 @@ final class GlassDrawable extends Drawable {
      * so the right part of the backdrop shows through.
      */
     static void draw(Canvas c, RectF rect, float radius, Backdrop backdrop, float screenX, float screenY, float density) {
-        draw(c, rect, radius, backdrop, screenX, screenY, density, 0x33000000);
+        draw(c, rect, radius, backdrop, screenX, screenY, density, 0);
     }
 
     static void draw(Canvas c, RectF rect, float radius, Backdrop backdrop, float screenX, float screenY,
                      float density, int veil) {
+        // One fill for the body of the glass: the blurred photo (veil already baked in) and the sheen on
+        // its upper half, composed in a single shader so the GPU blends this area once, not four times.
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Shader sheen = new LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.6f,
+                0x26FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP);
+        Shader body;
         Bitmap bmp = backdrop.bitmap();
         if (bmp != null && backdrop.screenWidth() > 0) {
-            BitmapShader shader = new BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            BitmapShader photo = new BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             Matrix m = new Matrix();
             m.setScale(backdrop.screenWidth() / (float) bmp.getWidth(), backdrop.screenHeight() / (float) bmp.getHeight());
             m.postTranslate(-screenX, -screenY);
-            shader.setLocalMatrix(m);
-            p.setShader(shader);
+            photo.setLocalMatrix(m);
+            body = new ComposeShader(photo, sheen, PorterDuff.Mode.SRC_OVER);
             p.setFilterBitmap(true);
-            c.drawRoundRect(rect, radius, radius, p);
+        } else {
+            body = new ComposeShader(new LinearGradient(0, rect.top, 0, rect.bottom, 0x2EFFFFFF, 0x14FFFFFF,
+                    Shader.TileMode.CLAMP), sheen, PorterDuff.Mode.SRC_OVER);
+        }
+        p.setShader(body);
+        c.drawRoundRect(rect, radius, radius, p);
+        if (veil != 0 && bmp != null) {
             p.setShader(null);
-            // A neutral veil keeps white text readable on bright photos.
             p.setColor(veil);
             c.drawRoundRect(rect, radius, radius, p);
-            p.setColor(0x14FFFFFF);
-            c.drawRoundRect(rect, radius, radius, p);
-        } else {
-            p.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, 0x2EFFFFFF, 0x14FFFFFF, Shader.TileMode.CLAMP));
-            c.drawRoundRect(rect, radius, radius, p);
         }
-        // Sheen: light falling on the upper half of the glass.
-        p.setShader(new LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.6f,
-                0x26FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-        c.drawRoundRect(rect, radius, radius, p);
         // Rim: bright at the top edge, faint at the bottom.
         float sw = Math.max(1f, 1.2f * density);
         RectF edge = new RectF(rect);

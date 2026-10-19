@@ -71,6 +71,11 @@ final class Backdrop {
             boxBlur(px, w, h, 4, false);
         }
         small.setPixels(px, 0, w, 0, 0, w, h);
+        // The glass veil (a little darker, then a little lighter) is baked in here, once, instead of
+        // being two more full blends over every glass surface on every frame.
+        Canvas veil = new Canvas(small);
+        veil.drawColor(0x33000000);
+        veil.drawColor(0x14FFFFFF);
         return small;
     }
 

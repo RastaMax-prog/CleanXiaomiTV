@@ -118,6 +118,7 @@ final class DailyPhoto {
             o.inSampleSize = 1;
             while (o.outWidth / (o.inSampleSize * 2) >= screenWidth) o.inSampleSize *= 2;
             o.inPreferredConfig = Bitmap.Config.RGB_565;   // half the memory; fine for photos on a 1 GB TV
+            o.inMutable = true;                            // so the home screen can bake its scrim into it
             return BitmapFactory.decodeFile(file.getPath(), o);
         } catch (Exception | OutOfMemoryError e) {
             Log.w(TAG, "photo: " + e);
