@@ -93,7 +93,7 @@ final class GlassDrawable extends Drawable {
         edge.inset(sw / 2f, sw / 2f);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(sw);
-        p.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, 0x8CFFFFFF, 0x1AFFFFFF, Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, 0x33FFFFFF, 0x0DFFFFFF, Shader.TileMode.CLAMP));
         c.drawRoundRect(edge, radius, radius, p);
     }
 

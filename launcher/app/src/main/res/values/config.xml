@@ -6,6 +6,9 @@
   Package names: on the TV run `pm list packages` (tools/tv.py 'pm list packages').
 -->
 <resources>
+    <!-- The launcher's name in the TV's app list and home picker; the same in every language. -->
+    <string name="launcher_name" translatable="false">CleanXiaomiTV</string>
+
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">

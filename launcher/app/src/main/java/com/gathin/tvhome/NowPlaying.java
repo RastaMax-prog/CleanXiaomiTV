@@ -23,6 +23,8 @@ import java.util.List;
  */
 final class NowPlaying {
     private static final String TAG = "TvHome.NowPlaying";
+    /** A song paused longer than this is no longer shown: you've moved on to something else. */
+    private static final long PAUSED_FOR_MS = 3 * 60_000L;
 
     static final class Track {
         final String title, artist;
@@ -87,6 +89,8 @@ final class NowPlaying {
     };
 
     private final MediaSessionManager.OnActiveSessionsChangedListener sessions = this::track;
+    /** Re-checks when a paused song runs out its PAUSED_FOR_MS, since no callback fires then. */
+    private final Runnable recheck = this::publish;
 
     NowPlaying(Context ctx, Handler handler, Listener listener) {
         this.ctx = ctx;
@@ -113,6 +117,7 @@ final class NowPlaying {
     }
 
     void stop() {
+        handler.removeCallbacks(recheck);
         if (msm != null) msm.removeOnActiveSessionsChangedListener(sessions);
         msm = null;
         for (MediaController c : controllers) c.unregisterCallback(callback);
@@ -132,14 +137,21 @@ final class NowPlaying {
     }
 
     private void publish() {
+        handler.removeCallbacks(recheck);
         MediaController best = null;
         boolean bestPlaying = false;
+        long pausedLeft = -1;   // ms until the paused candidate expires
         for (MediaController c : controllers) {
             PlaybackState s = c.getPlaybackState();
             if (s == null || c.getMetadata() == null) continue;
             int st = s.getState();
             boolean playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING;
             boolean paused = st == PlaybackState.STATE_PAUSED;
+            if (paused) {
+                long left = PAUSED_FOR_MS - (android.os.SystemClock.elapsedRealtime() - s.getLastPositionUpdateTime());
+                if (left <= 0) paused = false;   // paused too long ago: gone
+                else if (best == null) pausedLeft = left;
+            }
             if (playing && !bestPlaying) {
                 best = c;
                 bestPlaying = true;
@@ -151,6 +163,7 @@ final class NowPlaying {
             listener.onNowPlaying(null);
             return;
         }
+        if (!bestPlaying && pausedLeft > 0) handler.postDelayed(recheck, pausedLeft + 500);
         MediaMetadata m = best.getMetadata();
         String title = first(m, MediaMetadata.METADATA_KEY_DISPLAY_TITLE, MediaMetadata.METADATA_KEY_TITLE);
         if (title.isEmpty()) {
