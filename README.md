@@ -62,6 +62,14 @@ TV_HOST=192.168.1.50 tools/restore.sh debloat.txt com.google.android.apps.tv.lau
 
 This re-enables every package in the list, gives Home back to the stock Google TV launcher and switches the AdGuard DNS off. Remove the launcher afterwards in Settings → Apps if you like.
 
+## Network
+
+No analytics and no accounts. The only requests the TV makes for these features go to:
+[Open-Meteo](https://open-meteo.com) for the weather (only the city's coordinates), Bing's photo of the day
+archive for the screensaver, [Aladhan](https://aladhan.com) for prayer times, [iptv-org](https://github.com/iptv-org/iptv)'s
+public lists and the broadcasters' own streams for Channels, and AdGuard as the DNS resolver. Each can be
+switched off in `config.xml` (or by not installing that app).
+
 ## Credits
 
 Built on [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by [Gathin](https://github.com/Gathin23). MIT licensed, see [`LICENSE`](LICENSE). Font: Outfit (OFL). Icons: Material (Apache 2.0), Feather (MIT), Lucide (ISC).
