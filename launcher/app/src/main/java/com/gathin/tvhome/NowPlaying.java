@@ -29,13 +29,31 @@ final class NowPlaying {
         final Bitmap art;
         final boolean playing;
         final MediaController controller;
+        /** Song length in ms, or 0 when the app doesn't say. */
+        final long duration;
+        /** True when art is the song's cover; false when it is only the app's icon (DISPLAY_ICON). */
+        final boolean artIsCover;
 
-        Track(String title, String artist, Bitmap art, boolean playing, MediaController controller) {
+        Track(String title, String artist, Bitmap art, boolean artIsCover, boolean playing, MediaController controller,
+              long duration) {
             this.title = title;
             this.artist = artist;
             this.art = art;
+            this.artIsCover = artIsCover;
             this.playing = playing;
             this.controller = controller;
+            this.duration = duration;
+        }
+
+        /** Where playback is now, in ms, extrapolated from the session's last update; -1 when unknown. */
+        long position() {
+            PlaybackState s = controller.getPlaybackState();
+            if (s == null || s.getPosition() < 0) return -1;
+            long pos = s.getPosition();
+            if (s.getState() == PlaybackState.STATE_PLAYING) {
+                pos += (long) ((android.os.SystemClock.elapsedRealtime() - s.getLastPositionUpdateTime()) * s.getPlaybackSpeed());
+            }
+            return duration > 0 ? Math.min(pos, duration) : pos;
         }
     }
 
@@ -143,8 +161,10 @@ final class NowPlaying {
                 MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
         Bitmap art = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
         if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+        boolean cover = art != null;
         if (art == null) art = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-        listener.onNowPlaying(new Track(title, artist, art, bestPlaying, best));
+        listener.onNowPlaying(new Track(title, artist, art, cover, bestPlaying, best,
+                Math.max(0, m.getLong(MediaMetadata.METADATA_KEY_DURATION))));
     }
 
     private static String first(MediaMetadata m, String... keys) {
@@ -159,6 +179,14 @@ final class NowPlaying {
     static void toggle(Track t) {
         if (t.playing) t.controller.getTransportControls().pause();
         else t.controller.getTransportControls().play();
+    }
+
+    static void previous(Track t) {
+        t.controller.getTransportControls().skipToPrevious();
+    }
+
+    static void next(Track t) {
+        t.controller.getTransportControls().skipToNext();
     }
 
     /** The app's own player screen, or failing that its launch activity. */

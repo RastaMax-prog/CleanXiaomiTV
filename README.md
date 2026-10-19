@@ -2,7 +2,7 @@
 
 <p align="center">My Xiaomi TV, minus the ads: a clean home screen, a richer screensaver and live channels.</p>
 
-![The home screen: clock, live weather, the dock of four apps](docs/screenshot-home.png)
+![The home screen: today's photo, glass buttons and dock, the song playing above the dock](docs/screenshot-home.png)
 
 <table>
   <tr>
@@ -23,7 +23,8 @@
 
 - **Debloat**: [`debloat.txt`](debloat.txt) disables 23 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services and preloaded apps. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
-- **Home screen**: an Apple TV style launcher with a dock of four apps, five smaller tiles per row below it, the weather next to the clock, and the song playing (album art and moving bars) under the top buttons. Hold OK on a tile to move it. English and Arabic.
+- **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock; a dock of four apps and five smaller tiles per row below it. Hold OK on a tile to move it. English and Arabic.
+- **Now playing**: while Spotify or another music app plays, a glass card above the dock with the album art, song, progress and previous / play-pause / next buttons. Hold OK on it to open the app.
 - **Screensaver**: photos of the day with a slow zoom, the time and weather top left, the song playing bottom left, and a thikr with its source bottom right, a new one every minute.
 - **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search), **Prayer Times** (Morocco method, countdown to the next prayer) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish). They show up on the home screen as cards.
 
@@ -54,7 +55,7 @@ tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components
 
 ## Configure
 
-Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Casablanca by default), `grid_columns`, and switches for each feature (`dream_photos`, `dream_athkar`, `now_playing`). Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
+Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Casablanca by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_athkar`, `now_playing`). Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
 
 ## Undo
 
@@ -68,7 +69,7 @@ This re-enables every package in the list, gives Home back to the stock Google T
 
 No analytics and no accounts. The only requests the TV makes for these features go to:
 [Open-Meteo](https://open-meteo.com) for the weather (only the city's coordinates), Bing's photo of the day
-archive for the screensaver, [Aladhan](https://aladhan.com) for prayer times, [iptv-org](https://github.com/iptv-org/iptv)'s
+archive for the home screen and the screensaver, [Aladhan](https://aladhan.com) for prayer times, [iptv-org](https://github.com/iptv-org/iptv)'s
 public lists and the broadcasters' own streams for Channels, and AdGuard as the DNS resolver. Each can be
 switched off in `config.xml` (or by not installing that app).
 

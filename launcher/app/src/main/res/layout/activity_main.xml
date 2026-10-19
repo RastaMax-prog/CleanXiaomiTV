@@ -5,6 +5,21 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
+    <!-- Today's photo of the day behind everything (home_photo), with a scrim so text stays readable. -->
+    <ImageView
+        android:id="@+id/homePhoto"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/homeScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0" />
+
     <!-- Ambient glow in the colour of the focused dock app. -->
     <View
         android:id="@+id/ambient"
@@ -204,18 +219,45 @@
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
 
-            <!-- Now playing (NowPlaying): album art, "Song · Artist" and moving bars while a music app
-                 plays, on its own row under the buttons so the clock and weather keep their width. -->
-            <TextView
-                android:id="@+id/btnNowPlaying"
-                style="@style/TopButton"
+            <!-- Where today's photo was taken, and who took it, under the buttons. -->
+            <LinearLayout
+                android:id="@+id/photoCaption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_below="@id/topButtons"
                 android:layout_alignParentEnd="true"
-                android:layout_marginTop="12dp"
-                android:maxWidth="440dp"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:visibility="gone" />
+                android:layout_marginTop="14dp"
+                android:layout_marginEnd="6dp"
+                android:gravity="right"
+                android:orientation="vertical"
+                android:alpha="0">
+
+                <TextView
+                    android:id="@+id/photoTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxWidth="420dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:gravity="right"
+                    android:textColor="#E6FFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="@font/outfit"
+                    android:fontVariationSettings="'wght' 500" />
+
+                <TextView
+                    android:id="@+id/photoCredit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxWidth="420dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:gravity="right"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit" />
+            </LinearLayout>
         </RelativeLayout>
 
         <!-- The wrapper clips at the grid's edge; the grid itself must not clip so scaled tiles can overflow their cells. -->

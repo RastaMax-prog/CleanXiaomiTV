@@ -104,11 +104,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView greeting;
     private TextView reorderHint;
     private View btnInputs;
-    private TextView btnNowPlaying;
+    /** Null when now_playing is off. */
+    private NowPlayingCard nowCard;
+    /** False while focus is in the grid rows below the dock, where the card would cover tiles. */
+    private boolean cardAllowed = true;
+    /** The blurred picture behind the glass (photo of the day or a theme's wallpaper). */
+    private final Backdrop backdrop = new Backdrop();
+    private boolean homePhotoOn;
+    /** The day (yyyy-MM-dd) the home photo is for; null until one is shown. */
+    private String photoDay;
     /** Null when now_playing is off. */
     private NowPlaying nowPlaying;
     private NowPlaying.Track track;
-    private EqualizerDrawable equalizer;
     private TextView btnWifi;
     private TextView shamsiDate;
     private TextView weather;
@@ -226,6 +233,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root = findViewById(R.id.root);
         root.setBackgroundColor(cfg.backgroundColor);
         if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
+        homePhotoOn = cfg.homePhoto && cfg.wallpaper == null;
+        findViewById(R.id.homeScrim).setBackground(new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {0x99000000, 0x14000000, 0x29000000, 0xD9000000}));
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         heroName = findViewById(R.id.heroName);
@@ -267,7 +278,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setLayoutManager(glm);
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
-        grid.addItemDecoration(new DockDecoration(COLUMNS, density));
+        grid.addItemDecoration(new DockDecoration(COLUMNS, density, backdrop));
+        backdrop.register(grid);
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         adapter = new AppAdapter(this, this, COLUMNS, cfg, dockApps, appOrder);
@@ -288,6 +300,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
             }
+            grid.post(this::positionNowCard);
         });
 
         // Keep the glass glued to its tile while the grid scrolls.
@@ -326,15 +339,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             open(new Intent(Settings.ACTION_WIFI_SETTINGS));
             return true;
         });
-        btnNowPlaying = findViewById(R.id.btnNowPlaying);
-        if (cfg.nowPlaying) nowPlaying = new NowPlaying(this, handler, this::showNowPlaying);
-        btnNowPlaying.setOnClickListener(v -> {
-            if (track != null) NowPlaying.toggle(track);
-        });
-        btnNowPlaying.setOnLongClickListener(v -> {
-            if (track != null) NowPlaying.open(this, track);
-            return true;
-        });
+        // Liquid glass top buttons: the blurred photo behind them; solid white while focused.
+        for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) pill.setBackground(glassPill(pill));
+        if (cfg.nowPlaying) {
+            nowCard = new NowPlayingCard(this, backdrop, getResources().getFont(R.font.outfit), handler,
+                    new NowPlayingCard.Exits() {
+                        @Override
+                        public void up() {
+                            btnSettings.requestFocus();
+                        }
+
+                        @Override
+                        public void down() {
+                            focusTile(lastFocused % COLUMNS);
+                        }
+                    });
+            root.addView(nowCard, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            nowCard.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> positionNowCard());
+            nowPlaying = new NowPlaying(this, handler, this::showNowPlaying);
+        }
         btnSettings.setOnClickListener(v -> showSettingsMenu());
         btnSettings.setOnLongClickListener(v -> {
             if (!moduleCards) return false;   // off: a long press does nothing, as before the feature
@@ -348,9 +372,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                // The now playing row under the buttons when it shows, else back to the dock tile Up
-                // came from, not wherever the focus finder lands.
-                if (btnNowPlaying.getVisibility() == View.VISIBLE) btnNowPlaying.requestFocus();
+                // The now playing card when it shows, else back to the dock tile Up came from, not
+                // wherever the focus finder lands.
+                if (cardShowing()) nowCard.defaultButton().requestFocus();
                 else focusTile(lastFocused % COLUMNS);
                 return true;
             }
@@ -365,23 +389,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == R.id.btnSettings;
         };
-        // The now playing row: Up to the buttons, Down to the dock, nothing sideways.
-        btnNowPlaying.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_DPAD_UP:
-                    findViewById(R.id.btnSettings).requestFocus();
-                    return true;
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                    focusTile(lastFocused % COLUMNS);
-                    return true;
-                case KeyEvent.KEYCODE_DPAD_LEFT:
-                case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    return true;
-                default:
-                    return false;
-            }
-        });
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
@@ -429,6 +436,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             android.widget.ImageView wall = new android.widget.ImageView(this);
             wall.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
             wall.setImageBitmap(bmp);
+            backdrop.set(Backdrop.blur(bmp, dm.widthPixels, dm.heightPixels), dm.widthPixels, dm.heightPixels);
             root.addView(wall, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         } catch (Exception | OutOfMemoryError e) {
             // A bad or huge picture must never take the home screen down; the plain colour stays.
@@ -452,6 +460,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateInputsButton();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (nowPlaying != null) nowPlaying.start();
+        if (homePhotoOn) loadHomePhoto();
     }
 
     /** Rebuilds the tiles (and the module cards), then puts focus back where it was. */
@@ -522,7 +531,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         unregisterReceiver(packageReceiver);
         handler.removeCallbacks(minuteTick);
         if (nowPlaying != null) nowPlaying.stop();
-        if (equalizer != null) equalizer.stop();
+        if (nowCard != null) nowCard.stop();
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
         if (cardPrompt != null) cardPrompt.dismiss();
         if (openPopup != null) openPopup.dismiss();
@@ -596,8 +605,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int decoratedTop = item.getTop() - (int) (6 * density);
             int dy = decoratedTop - grid.getPaddingTop();
             if (Math.abs(dy) > 1) grid.smoothScrollBy(0, dy);
+            cardAllowed = true;
+            updateCard();
             showHero(position, r.top - dy);
         } else {
+            cardAllowed = false;
+            updateCard();
             hideHero();
             // Scroll just enough so the whole glass (not only the tile) is visible.
             Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
@@ -611,6 +624,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
+        // The now playing card takes this spot while it shows; the focused tile and glow name the app.
+        heroName.setVisibility(cardShowing() ? View.INVISIBLE : View.VISIBLE);
         boolean changed = !label.contentEquals(heroName.getText());
 
         if (!heroShown) {
@@ -656,7 +671,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setShader(new RadialGradient(
                 w * 0.32f, h * 0.42f, w * 0.62f,
-                new int[]{0x5C000000 | c, 0x26000000 | c, 0x00000000 | c},
+                // Over a photo the glow is a hint of colour, not a wash over the picture.
+                backdrop.bitmap() != null
+                        ? new int[]{0x2E000000 | c, 0x12000000 | c, 0x00000000 | c}
+                        : new int[]{0x5C000000 | c, 0x26000000 | c, 0x00000000 | c},
                 new float[]{0f, 0.45f, 1f},
                 Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
@@ -720,6 +738,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return col == width - 1 || position == count - 1;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (dock && cardShowing()) {                   // dock row: the now playing card above it
+                nowCard.defaultButton().requestFocus();
+                return true;
+            }
             if (dock) return false;                        // dock row: let focus move to the top bar
             if (g < GRID_COLUMNS) {
                 // First grid row: the dock slot under the same horizontal spot.
@@ -963,32 +985,96 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- now playing ----------------------------------------------------------------------------
 
-    /** The now playing pill: album art and "Song · Artist", dimmed while paused; hidden when nothing plays. */
     private void showNowPlaying(NowPlaying.Track t) {
         track = t;
-        if (t == null) {
-            if (btnNowPlaying.hasFocus()) findViewById(R.id.btnSettings).requestFocus();
-            btnNowPlaying.setVisibility(View.GONE);
-            if (equalizer != null) equalizer.stop();
-            return;
+        nowCard.bind(t);
+        updateCard();
+    }
+
+    private boolean cardShowing() {
+        return nowCard != null && nowCard.getVisibility() == View.VISIBLE;
+    }
+
+    /** The card shows while something plays or is paused, unless focus is down in the grid rows. */
+    private void updateCard() {
+        if (nowCard == null) return;
+        boolean show = nowCard.hasTrack() && cardAllowed;
+        heroName.setVisibility(show ? View.INVISIBLE : View.VISIBLE);
+        if (show && nowCard.getVisibility() != View.VISIBLE) {
+            nowCard.setVisibility(View.VISIBLE);
+            nowCard.post(() -> {
+                positionNowCard();
+                nowCard.animate().alpha(1f).setDuration(300).start();
+            });
+        } else if (!show && nowCard.getVisibility() == View.VISIBLE) {
+            if (nowCard.hasFocus()) focusTile(lastFocused % COLUMNS);
+            nowCard.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                if (!nowCard.hasTrack() || !cardAllowed) nowCard.setVisibility(View.GONE);
+            }).start();
         }
-        btnNowPlaying.setText(t.artist.isEmpty() ? t.title : t.title + "  \u00B7  " + t.artist);
-        int size = Math.round(22 * density);
-        Drawable icon = t.art != null
-                ? new BitmapDrawable(getResources(), roundedArt(t.art, size))
-                : getDrawable(R.drawable.ic_music);
-        icon.setBounds(0, 0, size, size);
-        if (equalizer == null) {
-            equalizer = new EqualizerDrawable(density, getColorStateList(R.drawable.pill_text));
-            equalizer.setBounds(0, 0, equalizer.getIntrinsicWidth(), equalizer.getIntrinsicHeight());
+    }
+
+    /** Above the dock band, lined up with its left edge. */
+    private void positionNowCard() {
+        if (nowCard == null || grid.getHeight() == 0 || nowCard.getHeight() == 0) return;
+        int[] g = new int[2], r = new int[2];
+        grid.getLocationInWindow(g);
+        root.getLocationInWindow(r);
+        float bandTop = g[1] - r[1] + grid.getPaddingTop() + 6 * density - 14 * density;
+        // Margins, not setX/setY: focus search goes by layout position and ignores translation.
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) nowCard.getLayoutParams();
+        int left = Math.round(g[0] - r[0] + grid.getPaddingLeft() - 14 * density);
+        int top = Math.round(bandTop - 22 * density - nowCard.getHeight());
+        if (lp.leftMargin != left || lp.topMargin != top) {
+            lp.gravity = Gravity.TOP | Gravity.START;
+            lp.leftMargin = left;
+            lp.topMargin = top;
+            nowCard.setLayoutParams(lp);
         }
-        // No tint here: the top buttons tint their icons white, which would flatten the album art.
-        btnNowPlaying.setCompoundDrawableTintList(null);
-        btnNowPlaying.setCompoundDrawablesRelative(icon, null, equalizer, null);
-        if (t.playing) equalizer.start();
-        else equalizer.stop();
-        btnNowPlaying.setAlpha(t.playing ? 1f : 0.7f);
-        btnNowPlaying.setVisibility(View.VISIBLE);
+    }
+
+    // ---- photo of the day -----------------------------------------------------------------------
+
+    /** Today's photo behind the home screen, once a day; the glass follows it. */
+    private void loadHomePhoto() {
+        String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(new java.util.Date());
+        if (day.equals(photoDay)) return;
+        photoDay = day;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        final int w = dm.widthPixels, h = dm.heightPixels;
+        new Thread(() -> {
+            java.util.List<DailyPhoto.Photo> list = DailyPhoto.list(this);
+            Bitmap bmp = list.isEmpty() ? null : DailyPhoto.load(this, list.get(0), w);
+            Bitmap blurred = bmp == null ? null : Backdrop.blur(bmp, w, h);
+            handler.post(() -> {
+                if (bmp == null) {
+                    photoDay = null;   // offline with nothing cached: try again next time Home opens
+                    return;
+                }
+                DailyPhoto.Photo p = list.get(0);
+                ImageView photo = findViewById(R.id.homePhoto);
+                photo.setImageBitmap(bmp);
+                photo.animate().alpha(1f).setDuration(900).start();
+                findViewById(R.id.homeScrim).animate().alpha(1f).setDuration(900).start();
+                backdrop.set(blurred, w, h);
+                ((TextView) findViewById(R.id.photoTitle)).setText(p.title);
+                TextView credit = findViewById(R.id.photoCredit);
+                credit.setText(p.credit);
+                credit.setVisibility(p.credit.isEmpty() ? View.GONE : View.VISIBLE);
+                findViewById(R.id.photoCaption).animate().alpha(1f).setDuration(900).start();
+            });
+        }).start();
+    }
+
+    /** A top button: liquid glass over the photo, solid white while focused. */
+    private Drawable glassPill(View pill) {
+        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
+        on.setColor(0xF5FFFFFF);
+        on.setCornerRadius(21 * density);
+        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+        bg.addState(new int[] {android.R.attr.state_focused}, on);
+        bg.addState(new int[] {}, new GlassDrawable(pill, backdrop, 21 * density, density));
+        return bg;
     }
 
     /** Album art scaled to a square with rounded corners. Also used by ClockDream. */
@@ -1221,6 +1307,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private PopupWindow glassPopup(View panel, int width) {
+        // Over a photo the menus are glass too, with a darker veil than the buttons so every row reads.
+        if (backdrop.bitmap() != null) panel.setBackground(new GlassDrawable(panel, backdrop, 20 * density, density, 0x99000000));
         final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
         popup.setOutsideTouchable(true);

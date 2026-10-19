@@ -9,7 +9,10 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-/** Draws the tvOS style lighter band behind the first (dock) row and adds a gap below it. */
+/**
+ * Draws the tvOS style band behind the first (dock) row and adds a gap below it. Over a photo or
+ * wallpaper the band is glass (GlassDrawable); on the plain background it is the dark band it always was.
+ */
 public class DockDecoration extends RecyclerView.ItemDecoration {
 
     private final int dockSize;
@@ -17,10 +20,13 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    private final Backdrop backdrop;
+    private final int[] loc = new int[2];
 
-    DockDecoration(int dockSize, float density) {
+    DockDecoration(int dockSize, float density, Backdrop backdrop) {
         this.dockSize = dockSize;
         this.density = density;
+        this.backdrop = backdrop;
         band.setColor(0xFF141416);
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(density);
@@ -61,6 +67,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         float pad = 14 * density;
         rect.inset(-pad, -pad);
         float radius = 26 * density;
+        if (backdrop.bitmap() != null) {
+            parent.getLocationOnScreen(loc);
+            GlassDrawable.draw(c, rect, radius, backdrop, loc[0], loc[1], density);
+            return;
+        }
         c.drawRoundRect(rect, radius, radius, band);
         c.drawRoundRect(rect, radius, radius, edge);
     }

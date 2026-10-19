@@ -51,9 +51,6 @@ public class ClockDream extends DreamService {
     /** A new photo every this many clock moves. */
     private static final int PHOTO_EVERY = 3;
     private static final long WEATHER_MS = 30 * MOVE_MS;
-    /** The last 8 photos of the day; urlbase + "_1920x1080.jpg" is the full HD image. */
-    private static final String BING_LIST = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US";
-    private static final int MAX_CACHED = 10;
     /** Deep, low-brightness glow colours; the glow is drawn at partial alpha on black. */
     private static final int[] PALETTE = {0xFF2B5CFF, 0xFF00A39A, 0xFF8A3FFC, 0xFFE0661B, 0xFFD6336C};
 
@@ -76,7 +73,7 @@ public class ClockDream extends DreamService {
     private boolean frontIsA;
     private View scrim;
     private TextView caption;
-    private final List<String[]> photos = new ArrayList<>();   // {url, caption, cache key}
+    private final List<DailyPhoto.Photo> photos = new ArrayList<>();
     private int photoIndex = -1;
     private int ticks;
     private ObjectAnimator zoom;
@@ -85,6 +82,8 @@ public class ClockDream extends DreamService {
     private ImageView nowArt;
     private TextView nowSong, nowArtist;
     private NowPlaying nowPlaying;
+    private String nowArtKey;
+    private boolean nowArtIsCover;
 
     private TextView weather;
     private String weatherUrl, weatherPlace;
@@ -248,44 +247,10 @@ public class ClockDream extends DreamService {
 
     // ---- photos ---------------------------------------------------------------------------------
 
-    private File cacheDir() {
-        File dir = new File(getCacheDir(), "dream");
-        if (!dir.isDirectory()) dir.mkdirs();
-        return dir;
-    }
-
     /** Today's list from Bing, or the last list saved when offline; then the first photo. */
     private void loadPhotoList() {
         io.execute(() -> {
-            File saved = new File(cacheDir(), "list.json");
-            String json = null;
-            try {
-                json = new String(fetch(BING_LIST), StandardCharsets.UTF_8);
-                try (FileOutputStream out = new FileOutputStream(saved)) {
-                    out.write(json.getBytes(StandardCharsets.UTF_8));
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "photo list: " + e);
-                try {
-                    json = new String(readFile(saved), StandardCharsets.UTF_8);
-                } catch (Exception ignored) {
-                }
-            }
-            List<String[]> list = new ArrayList<>();
-            if (json != null) {
-                try {
-                    JSONArray images = new JSONObject(json).getJSONArray("images");
-                    for (int i = 0; i < images.length(); i++) {
-                        JSONObject im = images.getJSONObject(i);
-                        String base = im.getString("urlbase");
-                        String key = base.replaceAll("[^A-Za-z0-9._-]", "_");
-                        list.add(new String[] {"https://www.bing.com" + base + "_1920x1080.jpg",
-                                im.optString("copyright", ""), key});
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "photo list parse: " + e);
-                }
-            }
+            List<DailyPhoto.Photo> list = DailyPhoto.list(this);
             handler.post(() -> {
                 photos.clear();
                 photos.addAll(list);
@@ -297,47 +262,12 @@ public class ClockDream extends DreamService {
     private void nextPhoto() {
         if (photos.isEmpty()) return;
         photoIndex = (photoIndex + 1) % photos.size();
-        final String[] p = photos.get(photoIndex);
+        final DailyPhoto.Photo p = photos.get(photoIndex);
         final int width = getResources().getDisplayMetrics().widthPixels;
         io.execute(() -> {
-            Bitmap bmp = loadPhoto(p[0], p[2], width);
-            if (bmp != null) handler.post(() -> showPhoto(bmp, p[1]));
+            Bitmap bmp = DailyPhoto.load(this, p, width);
+            if (bmp != null) handler.post(() -> showPhoto(bmp, p.caption()));
         });
-    }
-
-    /** The photo from the cache, else downloaded and cached; null when neither works. */
-    private Bitmap loadPhoto(String url, String key, int screenWidth) {
-        File file = new File(cacheDir(), key + ".jpg");
-        try {
-            if (!file.isFile()) {
-                byte[] data = fetch(url);
-                try (FileOutputStream out = new FileOutputStream(file)) {
-                    out.write(data);
-                }
-                prune();
-            }
-            file.setLastModified(System.currentTimeMillis());
-            BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(file.getPath(), o);
-            o.inJustDecodeBounds = false;
-            o.inSampleSize = 1;
-            while (o.outWidth / (o.inSampleSize * 2) >= screenWidth) o.inSampleSize *= 2;
-            o.inPreferredConfig = Bitmap.Config.RGB_565;   // half the memory; fine for photos on a 1 GB TV
-            return BitmapFactory.decodeFile(file.getPath(), o);
-        } catch (Exception | OutOfMemoryError e) {
-            Log.w(TAG, "photo: " + e);
-            file.delete();
-            return null;
-        }
-    }
-
-    /** Keeps the newest MAX_CACHED photos. */
-    private void prune() {
-        File[] files = cacheDir().listFiles((d, n) -> n.endsWith(".jpg"));
-        if (files == null || files.length <= MAX_CACHED) return;
-        Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-        for (int i = MAX_CACHED; i < files.length; i++) files[i].delete();
     }
 
     /** Fades the new photo in over the old one and starts a slow zoom; the glow steps aside. */
@@ -384,11 +314,18 @@ public class ClockDream extends DreamService {
         nowSong.setText(t.title);
         nowArtist.setText(t.artist);
         nowArtist.setVisibility(t.artist.isEmpty() ? View.GONE : View.VISIBLE);
-        if (t.art != null) {
+        // Keep the cover for the same song (apps send their icon for a moment on play/pause).
+        String key = t.title + '\u0000' + t.artist;
+        boolean sameSong = key.equals(nowArtKey);
+        if (t.art != null && (!sameSong || (t.artIsCover && !nowArtIsCover))) {
             nowArt.setImageBitmap(MainActivity.roundedArt(t.art, Math.round(64 * getResources().getDisplayMetrics().density)));
             nowArt.setVisibility(View.VISIBLE);
-        } else {
+            nowArtKey = key;
+            nowArtIsCover = t.artIsCover;
+        } else if (t.art == null && !sameSong) {
             nowArt.setVisibility(View.GONE);
+            nowArtKey = key;
+            nowArtIsCover = false;
         }
         nowBox.setAlpha(t.playing ? 1f : 0.6f);
         nowBox.setVisibility(View.VISIBLE);
@@ -404,7 +341,7 @@ public class ClockDream extends DreamService {
         io.execute(() -> {
             String text = null;
             try {
-                JSONObject cur = new JSONObject(new String(fetch(weatherUrl), StandardCharsets.UTF_8))
+                JSONObject cur = new JSONObject(new String(DailyPhoto.fetch(weatherUrl), StandardCharsets.UTF_8))
                         .getJSONObject("current");
                 text = MainActivity.weatherIcon(cur.getInt("weather_code"), cur.optInt("is_day", 1) == 1)
                         + "  " + Math.round(cur.getDouble("temperature_2m")) + "°"
@@ -422,31 +359,5 @@ public class ClockDream extends DreamService {
                 weather.setVisibility(View.VISIBLE);
             });
         });
-    }
-
-    // ---- io -------------------------------------------------------------------------------------
-
-    private static byte[] fetch(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(15000);
-        try (InputStream in = c.getInputStream()) {
-            return readAll(in);
-        } finally {
-            c.disconnect();
-        }
-    }
-
-    private static byte[] readFile(File f) throws Exception {
-        try (InputStream in = new FileInputStream(f)) {
-            return readAll(in);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws Exception {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buf = new byte[16384];
-        for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
-        return out.toByteArray();
     }
 }

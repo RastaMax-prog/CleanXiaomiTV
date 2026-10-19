@@ -45,6 +45,7 @@ final class Config {
     final boolean dreamAthkar;
     final boolean dreamPhotos;
     final boolean nowPlaying;
+    final boolean homePhoto;
     final boolean moduleCards;
     final String vpnApp;
     /** Open-Meteo location for the weather line; an empty latitude hides it. */
@@ -62,7 +63,7 @@ final class Config {
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int gridColumns, int rowsBelowDock,
-                   boolean shamsiDate, boolean dreamAthkar, boolean dreamPhotos, boolean nowPlaying, boolean moduleCards, String vpnApp,
+                   boolean shamsiDate, boolean dreamAthkar, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -79,6 +80,7 @@ final class Config {
         this.dreamAthkar = dreamAthkar;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
+        this.homePhoto = homePhoto;
         this.moduleCards = moduleCards;
         this.vpnApp = vpnApp;
         this.weatherLatitude = weatherLatitude;
@@ -111,6 +113,7 @@ final class Config {
         boolean athkar = res.getBoolean(R.bool.dream_athkar);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
+        boolean homePhoto = res.getBoolean(R.bool.home_photo);
         boolean moduleCards = res.getBoolean(R.bool.module_cards);
         String vpn = res.getString(R.string.vpn_app).trim();
         String weatherLat = res.getString(R.string.weather_latitude).trim();
@@ -140,6 +143,7 @@ final class Config {
             athkar = bool(json, "dream_athkar", athkar);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
+            homePhoto = bool(json, "home_photo", homePhoto);
             moduleCards = bool(json, "module_cards", moduleCards);
             vpn = string(json, "vpn_app", vpn);
             weatherLat = string(json, "weather_latitude", weatherLat);
@@ -154,7 +158,7 @@ final class Config {
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, photos, playing, moduleCards, vpn,
+                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, photos, playing, homePhoto, moduleCards, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings, background,
                 wallpaper, applied);
     }

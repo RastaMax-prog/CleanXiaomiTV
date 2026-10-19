@@ -52,6 +52,9 @@
          pauses, hold OK opens the app) and the song on the Clock screensaver. Needs notification access,
          which the install script grants. -->
     <bool name="now_playing">true</bool>
+    <!-- Today's photo of the day (Bing, the same as the screensaver) behind the home screen, with glass
+         buttons and dock over it. A theme's wallpaper takes its place. false: the plain background. -->
+    <bool name="home_photo">true</bool>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
          VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
          with an app set here, a red "VPN off" badge also shows while no VPN is up. -->
