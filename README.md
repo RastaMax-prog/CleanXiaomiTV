@@ -21,7 +21,7 @@
 
 ## What it does
 
-- **Debloat**: [`debloat.txt`](debloat.txt) disables 23 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services and preloaded apps. Nothing is uninstalled, and one command restores everything.
+- **Debloat**: [`debloat.txt`](debloat.txt) disables 39 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
 - **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock; a dock of four apps and five smaller tiles per row below it. Hold OK on a tile to move it. English and Arabic.
 - **Now playing**: while Spotify or another music app plays, a glass card above the dock with the album art, song, progress and previous / play-pause / next buttons. Hold OK on it to open the app.

@@ -44,6 +44,28 @@ com.google.android.youtube.tvmusic
 com.xiaomi.mimusic2
 com.google.android.play.games
 
+# Unused system leftovers (no visible change)
+com.android.printspooler
+com.android.dreams.basic
+com.android.dynsystem
+com.android.hotspot2.osulogin
+com.android.soundpicker
+com.android.wallpaperbackup
+com.android.settings.intelligence
+com.google.android.onetimeinitializer
+com.mediatek.android.leanbacklauncher.partnercustomizer
+com.xiaomi.android.tvsetup.partnercustomizer
+com.mstar.android.tv.disclaimercustomization
+mediatek.factorymenu.ui
+
+# Calendar sync (nothing on the TV shows a calendar)
+com.android.providers.calendar
+com.google.android.syncadapters.calendar
+
+# Screen reader and text-to-speech (not used here)
+com.google.android.marvin.talkback
+com.google.android.tts
+
 # ---- Home claimants: disabled only AFTER this launcher (com.majnioui.cleanxiaomitv) is installed and running ----
 # Both answer the HOME intent and would otherwise take Home once launcherx is off.
 com.duokan.factorytest
