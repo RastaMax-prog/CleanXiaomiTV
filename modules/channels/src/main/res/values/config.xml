@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent">#E5484D</color>
+    <!-- Public lists the channel links are refreshed from, once a day (iptv-org: free streams that the
+         broadcasters publish themselves). Channels are matched by tvg-id with res/raw/channels.m3u. -->
+    <string-array name="sources" translatable="false">
+        <item>https://iptv-org.github.io/iptv/countries/ma.m3u</item>
+        <item>https://iptv-org.github.io/iptv/languages/ara.m3u</item>
+    </string-array>
+</resources>

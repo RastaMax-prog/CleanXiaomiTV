@@ -1,0 +1,50 @@
+# My Xiaomi MiTV-MOOR2 (venom), Google TV / Android 11, firmware RTM5.220609.003.1300, 1.8 GB RAM.
+# What I disabled on my TV; nothing is uninstalled, tools/restore.sh brings it all back.
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh debloat.txt com.google.android.apps.tv.launcherx
+#
+# Kept on purpose: Chromecast (mediashell), firmware updates (updateservice, upgrader), Netflix,
+# YouTube, Mi Gallery / Mi Video player, Live TV (com.mitv.livetv owns the HDMI input switcher),
+# mitv.service, com.mitv.overseaservice, com.mediatek.*, com.mi.bluetooth, Gboard, Play Store/Services.
+
+# Xiaomi + Google telemetry
+com.miui.tv.analytics
+com.xiaomi.statistic
+com.xiaomi.tvqs.overseas
+com.google.android.feedback
+
+# Ad rows, promos and content providers on the home screen
+com.mitv.tvhome.oemtab
+com.mitv.tvhome.michannel
+com.mitv.tvhome.mitvplus
+com.mitv.tvhome.atv
+com.xm.webcontent
+com.google.android.partnersetup
+
+# Retail demo mode
+fusion.android.tv.demo
+
+# Xiaomi nagware and dead weight
+# com.xiaomi.mitv.tvmanager   # TV Manager: re-enabled 2026-10-19, its memory cleaner helps when the TV lags
+com.mitv.toolhouse
+com.xiaomo.tv.milegal
+android.autoinstalls.config.xiaomi.amelie
+
+# Mi Cast / Miracast (Chromecast kept)
+com.xiaomi.mitv.smartshare
+com.xiaomi.wfdsinkhelperservice
+
+# Google Assistant voice (not used)
+com.google.android.katniss
+com.google.android.tv.assistant
+
+# Preloaded apps not used
+com.google.android.youtube.tvmusic
+com.xiaomi.mimusic2
+com.google.android.play.games
+
+# ---- Home claimants: disabled only AFTER this launcher (com.majnioui.cleanxiaomitv) is installed and running ----
+# Both answer the HOME intent and would otherwise take Home once launcherx is off.
+com.duokan.factorytest
+com.google.android.tungsten.setupwraith   # setup wizard: re-enable before a factory reset (restore.sh does)

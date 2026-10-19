@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The city shown. Coordinates in decimal degrees. -->
+    <string name="latitude" translatable="false">33.5731</string>
+    <string name="longitude" translatable="false">-7.5898</string>
+    <string name="place" translatable="false">Casablanca</string>
+    <color name="accent">#2BB673</color>
+</resources>
