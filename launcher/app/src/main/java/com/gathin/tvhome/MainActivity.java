@@ -647,12 +647,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 heroName.setTranslationX(12 * density);
                 heroName.animate().alpha(1f).translationX(0f).setDuration(200).start();
             }).start();
-            if (color != ambientColor) {
-                ambient.animate().alpha(0.35f).setDuration(200).withEndAction(() -> {
-                    setAmbient(color);
-                    ambient.animate().alpha(1f).setDuration(500).start();
-                }).start();
-            }
+            if (color != ambientColor) setAmbient(color);   // cross-fades, see setAmbient
         } else {
             heroName.setY(y);
         }
@@ -677,9 +672,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Over a photo: an aurora in the app's colours. Its own colour low on the left, a warmer
             // shift to the right and a cooler one across the top, each a soft blob, so the picture
             // takes on the app's tint instead of being washed over.
-            aurora(canvas, paint, w * 0.22f, h * 0.78f, w * 0.55f, color, 0f, 0x66);
-            aurora(canvas, paint, w * 0.80f, h * 0.62f, w * 0.48f, color, 32f, 0x4D);
-            aurora(canvas, paint, w * 0.50f, h * 0.08f, w * 0.60f, color, -38f, 0x40);
+            aurora(canvas, paint, w * 0.22f, h * 0.78f, w * 0.60f, color, 0f, 0x38);
+            aurora(canvas, paint, w * 0.80f, h * 0.62f, w * 0.52f, color, 28f, 0x2B);
+            aurora(canvas, paint, w * 0.50f, h * 0.08f, w * 0.64f, color, -32f, 0x22);
         } else {
             paint.setShader(new RadialGradient(
                     w * 0.32f, h * 0.42f, w * 0.62f,
@@ -690,7 +685,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         BitmapDrawable drawable = new BitmapDrawable(getResources(), bmp);
         drawable.setGravity(Gravity.FILL);
-        ambient.setBackground(drawable);
+        // Cross-fade from the colours on screen to the new ones, instead of dipping and coming back.
+        android.graphics.drawable.Drawable old = ambient.getBackground();
+        if (old instanceof android.graphics.drawable.TransitionDrawable) {
+            old = ((android.graphics.drawable.TransitionDrawable) old).getDrawable(1);
+        }
+        if (old != null && ambient.getAlpha() > 0f) {
+            android.graphics.drawable.TransitionDrawable fade = new android.graphics.drawable.TransitionDrawable(
+                    new android.graphics.drawable.Drawable[] {old, drawable});
+            fade.setCrossFadeEnabled(true);
+            ambient.setBackground(fade);
+            fade.startTransition(700);
+        } else {
+            ambient.setBackground(drawable);
+        }
     }
 
     /** One aurora blob: the colour turned by hueShift degrees and made vivid, fading out from its centre. */
@@ -698,7 +706,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float[] hsv = new float[3];
         Color.colorToHSV(color, hsv);
         hsv[0] = (hsv[0] + hueShift + 360f) % 360f;
-        hsv[1] = Math.max(0.55f, hsv[1]);
+        hsv[1] = Math.min(0.7f, Math.max(0.45f, hsv[1]));
         hsv[2] = Math.max(0.75f, hsv[2]);
         int c = Color.HSVToColor(hsv) & 0x00FFFFFF;
         paint.setShader(new RadialGradient(x, y, r,
