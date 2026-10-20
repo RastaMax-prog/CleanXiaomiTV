@@ -96,7 +96,8 @@ fi
 # Optional accessibility services. Off unless asked for, and Android switches them off again on
 # every reinstall, so pass the flag each time you run this script.
 #   INPUT_KEY_SERVICE=1   the remote's Input button (KEYCODE_TV) opens the input switcher from any
-#                         app; Google TV needs this once the stock launcher is gone (InputKeyService)
+#                         app; Google TV needs this once the stock launcher is gone (InputKeyService).
+#                         Also makes Xiaomi remotes' YouTube and Apps buttons open YouTube and the launcher
 #   HOME_KEY_SERVICE=1    remotes whose Home button sends KEYCODE_ALL_APPS instead of HOME, e.g. Xiaomi
 #                         sticks: the key is routed to the launcher (HomeKeyService)
 enable_service() {   # appends to enabled_accessibility_services without dropping other services

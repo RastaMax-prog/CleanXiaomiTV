@@ -54,7 +54,7 @@ com.android.wallpaperbackup
 com.android.settings.intelligence
 com.google.android.onetimeinitializer
 com.mediatek.android.leanbacklauncher.partnercustomizer
-com.xiaomi.android.tvsetup.partnercustomizer
+# com.xiaomi.android.tvsetup.partnercustomizer   # kept: it opens Netflix / Prime from the remote's buttons
 com.mstar.android.tv.disclaimercustomization
 mediatek.factorymenu.ui
 
