@@ -66,7 +66,7 @@ com.google.android.syncadapters.calendar
 com.google.android.marvin.talkback
 com.google.android.tts
 
-# ---- Home claimants: disabled only AFTER this launcher (com.majnioui.cleanxiaomitv) is installed and running ----
-# Both answer the HOME intent and would otherwise take Home once launcherx is off.
-com.duokan.factorytest
-com.google.android.tungsten.setupwraith   # setup wizard: re-enable before a factory reset (restore.sh does)
+# Not disabled here, on purpose: the setup wizard (com.google.android.tungsten.setupwraith) and the
+# factory test app (com.duokan.factorytest). Both answer Home, so with the stock launcher off they are what
+# the TV falls back to if this launcher is ever removed; disabling them can leave a TV with no Home at all.
+# If launcher/build-and-install.sh says the setup wizard still owns Home, see docs/TROUBLESHOOTING.md.

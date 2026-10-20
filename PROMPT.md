@@ -14,7 +14,7 @@ USB speaker or drive plugged into it goes dead until you switch debugging off ag
 ---
 
 I want to debloat my Android TV and replace its launcher with a clean Apple TV style home screen.
-My TV model is: MiTV MOOR2 Work on the real device, step by step, and verify everything you
+My TV model is: MiTV MOOR2. Work on the real device, step by step, and verify everything you
 do with screenshots pulled from the TV. Ask me before anything that depends on my preferences.
 
 Connect
@@ -43,6 +43,10 @@ Debloat
   still unclear.
 - Before touching streaming apps, voice assistant, Chromecast, Miracast or the update service, ask me
   which ones I use with a checklist question and disable only what I don't tick.
+- Never disable the setup wizard (`com.google.android.tungsten.setupwraith`) or a factory test app
+  (`com.duokan.factorytest`) as part of the debloat, even though they answer HOME: with the stock launcher
+  off they are the TV's fallback Home. Only if the new launcher can't take Home because of the setup
+  wizard, explain that to me and ask first, and make sure the restore script re-enables it.
 - Run `pm` commands one per shell call, chained commands may silently stop after the first.
 
 Launcher
