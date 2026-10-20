@@ -293,7 +293,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int gcd = COLUMNS, rem = GRID_COLUMNS;
         while (rem != 0) { int t = gcd % rem; gcd = rem; rem = t; }
         final int spans = COLUMNS / gcd * GRID_COLUMNS;
-        GridLayoutManager glm = new GridLayoutManager(this, spans);
+        GridLayoutManager glm = new GridLayoutManager(this, spans) {
+            /**
+             * Keep the rows just off screen laid out (half a screen beyond each edge). The first grid row
+             * sits below the screen's edge under the dock, so without this Down found no tile there and
+             * fell back to scrolling first and focusing after, which made the highlight jump.
+             */
+            @Override
+            protected void calculateExtraLayoutSpace(@NonNull RecyclerView.State state, @NonNull int[] extra) {
+                extra[0] = extra[1] = getHeight() / 2;
+            }
+
+            /** Same amount as RecyclerView's own focus scroll, but with the launcher's slower glide. */
+            @Override
+            public boolean requestChildRectangleOnScreen(@NonNull RecyclerView parent, @NonNull View child,
+                                                         @NonNull Rect rect, boolean immediate, boolean focusedChildVisible) {
+                int top = getPaddingTop(), bottom = getHeight() - getPaddingBottom();
+                int childTop = child.getTop() + rect.top - child.getScrollY();
+                int childBottom = childTop + rect.height();
+                int offTop = Math.min(0, childTop - top), offBottom = Math.max(0, childBottom - bottom);
+                int dy = offTop != 0 ? offTop : Math.min(childTop - top, offBottom);
+                if (dy == 0) return false;
+                if (immediate) parent.scrollBy(0, dy);
+                else glide(dy);
+                return true;
+            }
+        };
         glm.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
             @Override
             public int getSpanSize(int position) {
@@ -321,7 +346,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int gridH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, GRID_COLUMNS, density)), density);
             int dockRow = dockH + (int) ((6 + 12) * density);   // item height plus DockDecoration offsets
             int gridRows = gridH * rowsBelowDock;
-            int want = Math.max(0, h - dockRow - gridRows - (int) (30 * density));
+            // With no rows below, the next row stays out of sight until Down: the dock item ends in an empty
+            // label strip (its name shows above the dock), so it reaches a little past the screen's edge.
+            // With rows below, a little room under them.
+            int spare = rowsBelowDock > 0 ? (int) (30 * density) : -(int) (10 * density);
+            int want = Math.max(0, h - dockRow - gridRows - spare);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
             }
@@ -639,7 +668,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Dock: park it at the bottom of the screen and show the top shelf for this app.
             int decoratedTop = item.getTop() - (int) (6 * density);
             int dy = decoratedTop - grid.getPaddingTop();
-            if (Math.abs(dy) > 1) grid.smoothScrollBy(0, dy);
+            if (Math.abs(dy) > 1) glide(dy);
             cardAllowed = true;
             updateCard();
             showHero(position, r.top - dy);
@@ -653,12 +682,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /** An ease-out curve close to tvOS: quick to start, a long soft landing. */
+    private static final android.view.animation.Interpolator GLIDE =
+            new android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f);
+
+    /** Scrolls the grid by dy over 380 to 560 ms, longer for longer distances. */
+    private void glide(int dy) {
+        int ms = Math.min(560, 380 + Math.round(Math.abs(dy) / density * 0.4f));
+        grid.smoothScrollBy(0, dy, GLIDE, ms);
+    }
+
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void showHero(int position, float dockTopInRoot) {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
-        float y = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
+        float y = dockTopInRoot - DockDecoration.PAD_Y * density - 26 * density - heroName.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
 
         if (!heroShown) {
@@ -747,8 +786,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void hideHero() {
         if (!heroShown) return;
         heroShown = false;
-        heroName.animate().alpha(0f).setDuration(160).start();
-        ambient.animate().alpha(0f).setDuration(300).start();
+        // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
+        // the whole screen's colour away.
+        heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
+        ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
     }
 
     private void hideGlass() {
@@ -1169,7 +1210,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
         } else if (!show && nowCard.getVisibility() == View.VISIBLE) {
             if (nowCard.hasFocus()) focusTile(lastFocused % COLUMNS);
-            nowCard.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+            nowCard.animate().alpha(0f).setDuration(300).withEndAction(() -> {
                 if (!nowCard.hasTrack() || !cardAllowed) nowCard.setVisibility(View.GONE);
             }).start();
         }
@@ -1184,10 +1225,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int[] g = new int[2], r = new int[2];
         grid.getLocationInWindow(g);
         root.getLocationInWindow(r);
-        float bandTop = g[1] - r[1] + grid.getPaddingTop() + 6 * density - 14 * density;
+        float bandTop = g[1] - r[1] + grid.getPaddingTop() + 6 * density - DockDecoration.PAD_Y * density;
         // Margins, not setX/setY: focus search goes by layout position and ignores translation.
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) nowCard.getLayoutParams();
-        int left = Math.round(g[0] - r[0] + grid.getPaddingLeft() - 14 * density);
+        int left = Math.round(g[0] - r[0] + grid.getPaddingLeft() - DockDecoration.PAD_X * density);
         int top = Math.round(bandTop - HERO_ROOM * density - nowCard.getHeight());
         if (lp.leftMargin != left || lp.topMargin != top) {
             lp.gravity = Gravity.TOP | Gravity.START;

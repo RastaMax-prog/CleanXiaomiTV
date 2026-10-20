@@ -57,30 +57,30 @@ final class NowPlayingCard extends LinearLayout {
         density = ctx.getResources().getDisplayMetrics().density;
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER_VERTICAL);
-        setPadding(dp(14), dp(14), dp(18), dp(14));
-        setBackground(new GlassDrawable(this, backdrop, dp(26), density));
+        setPadding(dp(10), dp(10), dp(14), dp(10));
+        setBackground(new GlassDrawable(this, backdrop, dp(21), density));
         setVisibility(GONE);
         setAlpha(0f);
 
         art = new ImageView(ctx);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        addView(art, new LayoutParams(dp(72), dp(72)));
+        addView(art, new LayoutParams(dp(56), dp(56)));
 
         LinearLayout texts = new LinearLayout(ctx);
         texts.setOrientation(VERTICAL);
-        texts.setPadding(dp(16), 0, dp(22), 0);
-        title = text(ctx, font, 19, 500, 0xFFFFFFFF);
+        texts.setPadding(dp(12), 0, dp(16), 0);
+        title = text(ctx, font, 16, 500, 0xFFFFFFFF);
         equalizer = new EqualizerDrawable(density, ColorStateList.valueOf(0xFFFFFFFF));
         equalizer.setBounds(0, 0, equalizer.getIntrinsicWidth(), equalizer.getIntrinsicHeight());
         title.setCompoundDrawablesRelative(null, null, equalizer, null);
         title.setCompoundDrawablePadding(dp(10));
-        artist = text(ctx, font, 14, 400, 0xB3FFFFFF);
+        artist = text(ctx, font, 12, 400, 0xB3FFFFFF);
         artist.setPadding(0, dp(3), 0, 0);
         progress = new Progress(ctx);
-        texts.addView(title, new LayoutParams(dp(250), LayoutParams.WRAP_CONTENT));
-        texts.addView(artist, new LayoutParams(dp(250), LayoutParams.WRAP_CONTENT));
-        LayoutParams plp = new LayoutParams(dp(250), dp(4));
-        plp.topMargin = dp(12);
+        texts.addView(title, new LayoutParams(dp(200), LayoutParams.WRAP_CONTENT));
+        texts.addView(artist, new LayoutParams(dp(200), LayoutParams.WRAP_CONTENT));
+        LayoutParams plp = new LayoutParams(dp(200), dp(3));
+        plp.topMargin = dp(9);
         texts.addView(progress, plp);
         addView(texts);
 
@@ -117,11 +117,11 @@ final class NowPlayingCard extends LinearLayout {
                     return false;
             }
         };
-        int gap = dp(10);
+        int gap = dp(8);
         for (ImageView b : new ImageView[] {prev, toggle, next}) {
             b.setOnLongClickListener(open);
             b.setOnKeyListener(keys);
-            LayoutParams lp = new LayoutParams(dp(52), dp(52));
+            LayoutParams lp = new LayoutParams(dp(42), dp(42));
             lp.leftMargin = b == prev ? 0 : gap;
             addView(b, lp);
         }
@@ -143,7 +143,7 @@ final class NowPlayingCard extends LinearLayout {
         String key = t.title + '\u0000' + t.artist;
         boolean sameSong = key.equals(artKey);
         if (t.art != null && (!sameSong || (t.artIsCover && !artIsCover))) {
-            art.setImageBitmap(MainActivity.roundedArt(t.art, dp(72)));
+            art.setImageBitmap(MainActivity.roundedArt(t.art, dp(56)));
             art.setVisibility(VISIBLE);
             artKey = key;
             artIsCover = t.artIsCover;
@@ -191,7 +191,7 @@ final class NowPlayingCard extends LinearLayout {
         on.setColor(0xF5FFFFFF);
         StateListDrawable bg = new StateListDrawable();
         bg.addState(new int[] {android.R.attr.state_focused}, on);
-        bg.addState(new int[] {}, new GlassDrawable(b, backdrop, dp(26), density));
+        bg.addState(new int[] {}, new GlassDrawable(b, backdrop, dp(21), density));
         b.setBackground(bg);
         b.setImageTintList(new ColorStateList(new int[][] {{android.R.attr.state_focused}, {}},
                 new int[] {0xFF111111, 0xFFFFFFFF}));

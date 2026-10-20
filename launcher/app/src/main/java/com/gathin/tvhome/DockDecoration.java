@@ -14,6 +14,12 @@ import androidx.recyclerview.widget.RecyclerView;
  * wallpaper the band is glass (GlassDrawable); on the plain background it is the dark band it always was.
  */
 public class DockDecoration extends RecyclerView.ItemDecoration {
+    /**
+     * Room (dp) between the dock tiles and the band's edge. Wider than the zoom of a focused tile
+     * (FOCUS_SCALE adds about 9dp a side on a 180dp tile), so a focused end tile keeps a clear margin
+     * like its neighbours instead of nearly touching the edge.
+     */
+    static final float PAD_X = 24, PAD_Y = 18;
 
     private final int dockSize;
     private final float density;
@@ -64,8 +70,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
             }
         }
         if (!any) return;
-        float pad = 14 * density;
-        rect.inset(-pad, -pad);
+        rect.inset(-PAD_X * density, -PAD_Y * density);
         float radius = 26 * density;
         if (backdrop.bitmap() != null) {
             parent.getLocationOnScreen(loc);
