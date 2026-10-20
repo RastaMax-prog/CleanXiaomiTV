@@ -673,18 +673,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setShader(new RadialGradient(
-                w * 0.32f, h * 0.42f, w * 0.62f,
-                // Over a photo the glow is a hint of colour, not a wash over the picture.
-                backdrop.bitmap() != null
-                        ? new int[]{0x2E000000 | c, 0x12000000 | c, 0x00000000 | c}
-                        : new int[]{0x5C000000 | c, 0x26000000 | c, 0x00000000 | c},
-                new float[]{0f, 0.45f, 1f},
-                Shader.TileMode.CLAMP));
-        canvas.drawRect(0, 0, w, h, paint);
+        if (backdrop.bitmap() != null) {
+            // Over a photo: an aurora in the app's colours. Its own colour low on the left, a warmer
+            // shift to the right and a cooler one across the top, each a soft blob, so the picture
+            // takes on the app's tint instead of being washed over.
+            aurora(canvas, paint, w * 0.22f, h * 0.78f, w * 0.55f, color, 0f, 0x66);
+            aurora(canvas, paint, w * 0.80f, h * 0.62f, w * 0.48f, color, 32f, 0x4D);
+            aurora(canvas, paint, w * 0.50f, h * 0.08f, w * 0.60f, color, -38f, 0x40);
+        } else {
+            paint.setShader(new RadialGradient(
+                    w * 0.32f, h * 0.42f, w * 0.62f,
+                    new int[]{0x5C000000 | c, 0x26000000 | c, 0x00000000 | c},
+                    new float[]{0f, 0.45f, 1f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawRect(0, 0, w, h, paint);
+        }
         BitmapDrawable drawable = new BitmapDrawable(getResources(), bmp);
         drawable.setGravity(Gravity.FILL);
         ambient.setBackground(drawable);
+    }
+
+    /** One aurora blob: the colour turned by hueShift degrees and made vivid, fading out from its centre. */
+    private static void aurora(Canvas canvas, Paint paint, float x, float y, float r, int color, float hueShift, int alpha) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[0] = (hsv[0] + hueShift + 360f) % 360f;
+        hsv[1] = Math.max(0.55f, hsv[1]);
+        hsv[2] = Math.max(0.75f, hsv[2]);
+        int c = Color.HSVToColor(hsv) & 0x00FFFFFF;
+        paint.setShader(new RadialGradient(x, y, r,
+                new int[]{(alpha << 24) | c, ((alpha / 3) << 24) | c, c},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
     }
 
     private void hideHero() {
@@ -1087,13 +1107,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /**
      * Once the photo covers the screen, nothing under it is ever seen: drop the window and root
-     * backgrounds and the ambient glow, three full-screen layers the GPU would otherwise fill and blend
-     * on every frame while focus moves.
+     * backgrounds, two full-screen layers the GPU would otherwise fill on every frame.
      */
     private void dropHiddenLayers() {
         getWindow().setBackgroundDrawable(null);
         root.setBackground(null);
-        ambient.setVisibility(View.GONE);
+        // The ambient glow was drawn for the plain background; repaint it as an aurora for the photo.
+        int c = ambientColor;
+        ambientColor = 0;
+        if (c != 0) setAmbient(c);
     }
 
     /** A top button: liquid glass over the photo, solid white while focused. */
