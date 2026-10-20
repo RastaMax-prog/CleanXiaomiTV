@@ -61,4 +61,19 @@
     <string name="card_state_new">جديدة</string>
     <string name="card_state_new_key">مفتاح جديد</string>
     <string name="card_state_new_label">اسم جديد</string>
+    <string name="toggle_home_prayer">مواقيت الصلاة في الرئيسية</string>
+    <string name="toggle_dream_prayer">مواقيت الصلاة في شاشة التوقف</string>
+    <string name="toggle_dream_athkar">الأذكار في شاشة التوقف</string>
+    <string name="toggle_on">مفعّل</string>
+    <string name="toggle_off">معطّل</string>
+    <string name="prayer_fajr">الفجر</string>
+    <string name="prayer_sunrise">الشروق</string>
+    <string name="prayer_dhuhr">الظهر</string>
+    <string name="prayer_asr">العصر</string>
+    <string name="prayer_maghrib">المغرب</string>
+    <string name="prayer_isha">العشاء</string>
+    <string name="prayer_in">بعد %1$s</string>
+    <string name="prayer_hours_minutes">%1$d س %2$d د</string>
+    <string name="prayer_minutes">%1$d د</string>
+    <string name="prayer_now">الآن</string>
 </resources>

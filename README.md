@@ -55,7 +55,7 @@ tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components
 
 ## Configure
 
-Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Casablanca by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_athkar`, `now_playing`). Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
+Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Casablanca by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_athkar`, `home_prayer`, `dream_prayer`, `now_playing`). The athkar and prayer-time switches can also be flipped on the TV: Settings pill, then the On/Off rows at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
 
 ## Undo
 

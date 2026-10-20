@@ -124,6 +124,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** When the weather was last fetched (elapsedRealtime), successfully or not. */
     private long weatherAt = -WEATHER_MS;
     private boolean weatherLoading;
+    /** Prayer pill under the clock (home_prayer); switched from the Settings menu. */
+    private boolean homePrayer;
+    private String prayerLat, prayerLon;
+    private int prayerMethod;
+    private View prayerPill, prayerBar;
+    private TextView prayerName, prayerTime, prayerLeft;
+    private ImageView prayerIcon;
+    /** The last times loaded; kept past midnight until the new day's arrive, a minute out at most. */
+    private Prayer.Day prayerDay;
+    /** When the times were last requested (elapsedRealtime). */
+    private long prayerAt = -5 * MINUTE_MS;
+    private boolean prayerLoading;
     private boolean shamsi;
     private String vpnApp;
     private SpringAnimation springX, springY;
@@ -211,6 +223,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateGreeting();
             updateWifiLabel();
             updateWeather();
+            updatePrayer();
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -257,6 +270,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.weatherLatitude
                     + "&longitude=" + cfg.weatherLongitude + "&current=temperature_2m,weather_code,is_day&timezone=auto";
         }
+        prayerPill = findViewById(R.id.prayerPill);
+        prayerIcon = findViewById(R.id.prayerIcon);
+        prayerName = findViewById(R.id.prayerName);
+        prayerTime = findViewById(R.id.prayerTime);
+        prayerLeft = findViewById(R.id.prayerLeft);
+        prayerBar = findViewById(R.id.prayerBar);
+        prayerPill.setBackground(new GlassDrawable(prayerPill, backdrop, 19 * density, density));
+        prayerBar.setBackground(prayerBarDrawable());
+        // Prayer times use the weather coordinates; without them there is nothing to show.
+        if (!cfg.weatherLatitude.isEmpty() && !cfg.weatherLongitude.isEmpty()) {
+            prayerLat = cfg.weatherLatitude;
+            prayerLon = cfg.weatherLongitude;
+        }
+        prayerMethod = cfg.prayerMethod;
+        homePrayer = cfg.homePrayer && prayerLat != null;
         dockApps = DockEditor.loadDock(this, cfg.dockApps, COLUMNS);
         appOrder = DockEditor.loadAppOrder(this, dockApps);
 
@@ -462,6 +490,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateGreeting();
         updateWifiLabel();
         updateWeather();
+        updatePrayer();
         updateInputsButton();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (nowPlaying != null) nowPlaying.start();
@@ -840,11 +869,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
-        final PopupWindow popup = glassPopup(panel, (int) (285 * density));
+        final PopupWindow popup = glassPopup(panel, (int) (320 * density));
 
         addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.edit_dock, 1);
         addSettingsRow(rows, popup, R.drawable.ic_settings, R.string.system_settings, 2);
         if (moduleCards) addSettingsRow(rows, popup, R.drawable.ic_home_settings, R.string.module_cards, 3);
+        // Switches that stay on the TV (Config.setToggle); the screensaver reads them when it next starts.
+        addSeparator(rows);
+        Config cfg = Config.load(this);
+        if (prayerLat != null) {
+            addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_home_prayer, Config.HOME_PRAYER, homePrayer, on -> {
+                homePrayer = on;
+                updatePrayer();
+            });
+            addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_dream_prayer, Config.DREAM_PRAYER, cfg.dreamPrayer, null);
+        }
+        addToggleRow(rows, R.drawable.ic_athkar, R.string.toggle_dream_athkar, Config.DREAM_ATHKAR, cfg.dreamAthkar, null);
 
         for (int i = 0; i < rows.getChildCount(); i++) {
             final int index = i;
@@ -852,7 +892,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             row.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    int next = index + (keyCode == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1);
+                    int step = keyCode == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1;
+                    int next = index + step;
+                    while (next >= 0 && next < rows.getChildCount() && !rows.getChildAt(next).isFocusable()) next += step;
                     if (next >= 0 && next < rows.getChildCount()) rows.getChildAt(next).requestFocus();
                     return true;
                 }
@@ -874,6 +916,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (action == 1) showDockEditor();
             else if (action == 2) open(new Intent(Settings.ACTION_SETTINGS));
             else showModuleCards();
+        });
+        rows.addView(row);
+    }
+
+    /** A row that switches a setting On and Off in place; the menu stays open. */
+    private void addToggleRow(LinearLayout rows, int icon, int title, String key, boolean initial,
+                              java.util.function.Consumer<Boolean> changed) {
+        View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
+        ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
+        ((TextView) row.findViewById(R.id.title)).setText(title);
+        TextView status = row.findViewById(R.id.status);
+        View dot = row.findViewById(R.id.dot);
+        final boolean[] on = {initial};
+        Runnable show = () -> {
+            status.setText(on[0] ? R.string.toggle_on : R.string.toggle_off);
+            dot.setVisibility(on[0] ? View.VISIBLE : View.GONE);
+        };
+        show.run();
+        row.setOnClickListener(v -> {
+            on[0] = !on[0];
+            Config.setToggle(this, key, on[0]);
+            show.run();
+            if (changed != null) changed.accept(on[0]);
         });
         rows.addView(row);
     }
@@ -1000,6 +1065,71 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 weather.setVisibility(View.VISIBLE);
             });
         }).start();
+    }
+
+    // ---- prayer times ---------------------------------------------------------------------------
+
+    /** Gold for the moon and for a prayer that is due: warm against the photo, unlike the green of "connected". */
+    static final int PRAYER_GOLD = 0xFFF2C879;
+
+    /** Updates the pill every minute; today's times come from the saved file, or once a day from Aladhan. */
+    private void updatePrayer() {
+        if (!homePrayer) {
+            prayerPill.setVisibility(View.GONE);
+            return;
+        }
+        String key = Prayer.key(prayerLat, prayerLon, prayerMethod);
+        if (prayerDay == null || !prayerDay.key.equals(key)) {
+            Prayer.Day saved = Prayer.cached(this, key);
+            if (saved != null) prayerDay = saved;
+            else fetchPrayer();
+        }
+        if (prayerDay == null) return;
+        Prayer.Next next = Prayer.next(prayerDay);
+        boolean due = next.minutesLeft <= Prayer.NOW_MINUTES;   // the last quarter hour, and "now"
+        prayerName.setText(Prayer.name(this, next.index));
+        prayerName.setTextColor(due ? PRAYER_GOLD : 0xFFFFFFFF);
+        prayerTime.setText(Prayer.time(this, prayerDay.minutes[next.index]));
+        prayerLeft.setText(Prayer.countdown(this, next));
+        prayerLeft.setTextColor(due ? PRAYER_GOLD : 0xB3FFFFFF);
+        prayerIcon.setImageTintList(android.content.res.ColorStateList.valueOf(PRAYER_GOLD));
+        prayerBar.getBackground().setLevel(Math.round(next.progress * 10000));
+        if (prayerPill.getVisibility() != View.VISIBLE) {
+            prayerPill.setAlpha(0f);
+            prayerPill.setVisibility(View.VISIBLE);
+            prayerPill.animate().alpha(1f).setDuration(400).start();
+        }
+    }
+
+    /** At most every 5 minutes while the times are missing, off the main thread. */
+    private void fetchPrayer() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (prayerLoading || now - prayerAt < 5 * MINUTE_MS) return;
+        prayerAt = now;
+        prayerLoading = true;
+        final String lat = prayerLat, lon = prayerLon;
+        final int method = prayerMethod;
+        new Thread(() -> {
+            Prayer.Day day = Prayer.fetch(getApplicationContext(), lat, lon, method);
+            handler.post(() -> {
+                prayerLoading = false;
+                if (day == null) return;
+                prayerDay = day;
+                updatePrayer();
+            });
+        }).start();
+    }
+
+    /** A thin rounded track with the elapsed part in gold; the level (0 to 10000) is the progress. */
+    private Drawable prayerBarDrawable() {
+        android.graphics.drawable.GradientDrawable track = new android.graphics.drawable.GradientDrawable();
+        track.setColor(0x33FFFFFF);
+        track.setCornerRadius(2 * density);
+        android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
+        fill.setColor(PRAYER_GOLD);
+        fill.setCornerRadius(2 * density);
+        return new android.graphics.drawable.LayerDrawable(new Drawable[] {track,
+                new android.graphics.drawable.ClipDrawable(fill, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL)});
     }
 
     /** WMO weather code (as used by Open-Meteo) to an emoji. Also used by ClockDream. */

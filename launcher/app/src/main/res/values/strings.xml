@@ -61,4 +61,19 @@
     <string name="card_state_new">New</string>
     <string name="card_state_new_key">New key</string>
     <string name="card_state_new_label">New name</string>
+    <string name="toggle_home_prayer">Prayer times on Home</string>
+    <string name="toggle_dream_prayer">Prayer times on screensaver</string>
+    <string name="toggle_dream_athkar">Athkar on screensaver</string>
+    <string name="toggle_on">On</string>
+    <string name="toggle_off">Off</string>
+    <string name="prayer_fajr">Fajr</string>
+    <string name="prayer_sunrise">Sunrise</string>
+    <string name="prayer_dhuhr">Dhuhr</string>
+    <string name="prayer_asr">Asr</string>
+    <string name="prayer_maghrib">Maghrib</string>
+    <string name="prayer_isha">Isha</string>
+    <string name="prayer_in">in %1$s</string>
+    <string name="prayer_hours_minutes">%1$d h %2$d min</string>
+    <string name="prayer_minutes">%1$d min</string>
+    <string name="prayer_now">now</string>
 </resources>

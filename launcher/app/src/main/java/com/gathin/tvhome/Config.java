@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.util.Log;
@@ -24,6 +25,8 @@ import java.util.List;
  * unknown or badly typed key is ignored, so a theme can change the dock and the look without a rebuild:
  * {@code tools/theme.sh themes/<name>} pushes a theme folder there and restarts Home.
  *
+ * The few switches in the Settings menu (athkar and prayer times) are saved on the TV and win over both.
+ *
  * Read once in {@link MainActivity#onCreate}; nothing here touches the network.
  */
 final class Config {
@@ -43,6 +46,11 @@ final class Config {
     final int rowsBelowDock;
     final boolean shamsiDate;
     final boolean dreamAthkar;
+    /** Today's prayer times under the clock on Home, and on the screensaver; at the weather coordinates. */
+    final boolean homePrayer;
+    final boolean dreamPrayer;
+    /** Aladhan calculation method (21 = Morocco, 3 = Muslim World League, ...). */
+    final int prayerMethod;
     final boolean dreamPhotos;
     final boolean nowPlaying;
     final boolean homePhoto;
@@ -63,7 +71,7 @@ final class Config {
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int gridColumns, int rowsBelowDock,
-                   boolean shamsiDate, boolean dreamAthkar, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
+                   boolean shamsiDate, boolean dreamAthkar, boolean homePrayer, boolean dreamPrayer, int prayerMethod, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -78,6 +86,9 @@ final class Config {
         this.rowsBelowDock = rowsBelowDock;
         this.shamsiDate = shamsiDate;
         this.dreamAthkar = dreamAthkar;
+        this.homePrayer = homePrayer;
+        this.dreamPrayer = dreamPrayer;
+        this.prayerMethod = prayerMethod;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
         this.homePhoto = homePhoto;
@@ -111,6 +122,9 @@ final class Config {
         int rowsBelow = res.getInteger(R.integer.rows_below_dock);
         boolean shamsi = res.getBoolean(R.bool.shamsi_date);
         boolean athkar = res.getBoolean(R.bool.dream_athkar);
+        boolean homePrayer = res.getBoolean(R.bool.home_prayer);
+        boolean dreamPrayer = res.getBoolean(R.bool.dream_prayer);
+        int prayerMethod = res.getInteger(R.integer.prayer_method);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
         boolean homePhoto = res.getBoolean(R.bool.home_photo);
@@ -141,6 +155,9 @@ final class Config {
             rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
             shamsi = bool(json, "shamsi_date", shamsi);
             athkar = bool(json, "dream_athkar", athkar);
+            homePrayer = bool(json, "home_prayer", homePrayer);
+            dreamPrayer = bool(json, "dream_prayer", dreamPrayer);
+            prayerMethod = integer(json, "prayer_method", prayerMethod, 0, 99);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
             homePhoto = bool(json, "home_photo", homePhoto);
@@ -152,15 +169,33 @@ final class Config {
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             background = color(json, "background_color", background);
         }
+        // Switched on the TV itself (Settings menu): wins over config.xml and a theme.
+        SharedPreferences toggles = toggles(ctx);
+        athkar = toggles.getBoolean(DREAM_ATHKAR, athkar);
+        homePrayer = toggles.getBoolean(HOME_PRAYER, homePrayer);
+        dreamPrayer = toggles.getBoolean(DREAM_PRAYER, dreamPrayer);
+
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
         // A theme can also switch the wallpaper off while the file is still there.
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, photos, playing, homePhoto, moduleCards, vpn,
+                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, homePrayer, dreamPrayer, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings, background,
                 wallpaper, applied);
+    }
+
+    /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
+    static final String DREAM_ATHKAR = "dream_athkar", HOME_PRAYER = "home_prayer", DREAM_PRAYER = "dream_prayer";
+
+    private static SharedPreferences toggles(Context ctx) {
+        return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);
+    }
+
+    /** Saves a switch from the Settings menu; it is read on the next {@link #load}. */
+    static void setToggle(Context ctx, String key, boolean on) {
+        toggles(ctx).edit().putBoolean(key, on).apply();
     }
 
     /** Reads and parses the overlay; any problem means "no overlay", never a crash on the home screen. */

@@ -47,6 +47,15 @@
     <bool name="shamsi_date">false</bool>
     <!-- Adhkar at the bottom of the Clock screensaver, a new one every minute (res/values/athkar.xml). -->
     <bool name="dream_athkar">true</bool>
+    <!-- Today's prayer times at the weather coordinates below, from Aladhan (free, no account or key; only the
+         coordinates, the date and the method are sent, once a day). home_prayer: the next prayer and a
+         countdown in a glass pill under the clock. dream_prayer: the day's five times on the Clock screensaver.
+         These two and dream_athkar can also be switched on the TV: Settings pill, then the rows at the bottom. -->
+    <bool name="home_prayer">true</bool>
+    <bool name="dream_prayer">true</bool>
+    <!-- Aladhan calculation method: 21 Morocco, 3 Muslim World League, 2 ISNA (North America), 4 Umm al-Qura,
+         5 Egypt, 12 France, 13 Turkey; the full list is on aladhan.com/calculation-methods. -->
+    <integer name="prayer_method">21</integer>
     <!-- Photos of the day from Bing behind the Clock screensaver, a new one every 3 minutes, kept on the TV
          for offline use. false: the dark glow only, and the screensaver makes no network requests besides
          the weather. -->

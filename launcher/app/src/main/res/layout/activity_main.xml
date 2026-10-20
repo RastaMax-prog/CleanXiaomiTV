@@ -214,6 +214,78 @@
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
 
+            <!-- Next prayer under the clock (home_prayer): moon, name, time, countdown and how far through the
+                 wait since the last prayer. Glass like the pills, but not focusable: it only informs. -->
+            <LinearLayout
+                android:id="@+id/prayerPill"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_below="@id/leftBlock"
+                android:layout_alignParentStart="true"
+                android:layout_marginTop="12dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="18dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/prayerIcon"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    android:src="@drawable/ic_prayer"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/prayerName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:singleLine="true"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="15sp"
+                    android:fontFamily="@font/outfit"
+                    android:fontVariationSettings="'wght' 500"
+                    android:includeFontPadding="false" />
+
+                <TextView
+                    android:id="@+id/prayerTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="7dp"
+                    android:singleLine="true"
+                    android:textColor="#E6FFFFFF"
+                    android:textSize="15sp"
+                    android:fontFamily="@font/outfit"
+                    android:fontVariationSettings="'wght' 300"
+                    android:includeFontPadding="false" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:background="#40FFFFFF" />
+
+                <TextView
+                    android:id="@+id/prayerLeft"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="14sp"
+                    android:fontFamily="@font/outfit"
+                    android:fontVariationSettings="'wght' 400"
+                    android:includeFontPadding="false" />
+
+                <!-- Time since the last prayer, filled towards this one. -->
+                <View
+                    android:id="@+id/prayerBar"
+                    android:layout_width="42dp"
+                    android:layout_height="3dp"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
             <!-- Where today's photo was taken, and who took it, under the buttons. -->
             <LinearLayout
                 android:id="@+id/photoCaption"
