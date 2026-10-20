@@ -2,14 +2,10 @@ package com.gathin.tvhome;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
-import android.os.Build;
-import android.os.Handler;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -20,9 +16,11 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * The now playing card above the dock: album art, song with moving bars, artist, a progress bar and
- * previous / play-pause / next buttons on a glass card. OK on a button does that; holding OK opens the
- * music app. Up leaves for the top buttons, Down for the dock (see MainActivity).
+ * The now playing pill under the top buttons, the same height as the prayer pill: the cover as a circle
+ * in the pill's round end, the song with moving bars, the artist, and previous / play-pause / next. The
+ * glass takes on the cover's colour, strongest behind it and fading towards the buttons, so cover and pill
+ * read as one. OK on a button does that; holding OK
+ * opens the music app. Up leaves for the top buttons, Down for the dock (see MainActivity).
  */
 final class NowPlayingCard extends LinearLayout {
     interface Exits {
@@ -31,11 +29,14 @@ final class NowPlayingCard extends LinearLayout {
         void down();
     }
 
+    /** The cover sits ART_INSET from the top, bottom and left: a circle concentric with the pill's end. */
+    private static final int HEIGHT = 38, ART_INSET = 4, ART = HEIGHT - 2 * ART_INSET, BUTTON = 30;
+
     private final float density;
-    private final Handler handler;
     private final ImageView art;
+    /** The cover's colour across the glass; transparent without a cover. */
+    private final GradientDrawable tint;
     private final TextView title, artist;
-    private final Progress progress;
     private final ImageView prev, toggle, next;
     private final EqualizerDrawable equalizer;
     private NowPlaying.Track track;
@@ -43,50 +44,41 @@ final class NowPlayingCard extends LinearLayout {
     private String artKey;
     private boolean artIsCover;
 
-    private final Runnable tick = new Runnable() {
-        @Override
-        public void run() {
-            updateProgress();
-            if (track != null && track.playing && getVisibility() == VISIBLE) handler.postDelayed(this, 1000);
-        }
-    };
-
-    NowPlayingCard(Context ctx, Backdrop backdrop, Typeface font, Handler handler, Exits exits) {
+    NowPlayingCard(Context ctx, Backdrop backdrop, Typeface font, Exits exits) {
         super(ctx);
-        this.handler = handler;
         density = ctx.getResources().getDisplayMetrics().density;
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER_VERTICAL);
-        setPadding(dp(10), dp(10), dp(14), dp(10));
-        setBackground(new GlassDrawable(this, backdrop, dp(21), density));
+        setMinimumHeight(dp(HEIGHT));
+        setPadding(dp(ART_INSET), 0, dp(4), 0);
+        tint = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[] {0, 0});
+        tint.setCornerRadius(dp(HEIGHT / 2));
+        setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
+                new GlassDrawable(this, backdrop, dp(HEIGHT / 2), density), tint}));
         setVisibility(GONE);
         setAlpha(0f);
 
         art = new ImageView(ctx);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        addView(art, new LayoutParams(dp(56), dp(56)));
+        LayoutParams alp = new LayoutParams(dp(ART), dp(ART));
+        alp.rightMargin = dp(10);
+        addView(art, alp);
 
-        LinearLayout texts = new LinearLayout(ctx);
-        texts.setOrientation(VERTICAL);
-        texts.setPadding(dp(12), 0, dp(16), 0);
-        title = text(ctx, font, 16, 500, 0xFFFFFFFF);
+        title = text(ctx, font, 14, 500, 0xFFFFFFFF);
+        title.setMaxWidth(dp(170));
         equalizer = new EqualizerDrawable(density, ColorStateList.valueOf(0xFFFFFFFF));
-        equalizer.setBounds(0, 0, equalizer.getIntrinsicWidth(), equalizer.getIntrinsicHeight());
-        title.setCompoundDrawablesRelative(null, null, equalizer, null);
-        title.setCompoundDrawablePadding(dp(10));
-        artist = text(ctx, font, 12, 400, 0xB3FFFFFF);
-        artist.setPadding(0, dp(3), 0, 0);
-        progress = new Progress(ctx);
-        texts.addView(title, new LayoutParams(dp(200), LayoutParams.WRAP_CONTENT));
-        texts.addView(artist, new LayoutParams(dp(200), LayoutParams.WRAP_CONTENT));
-        LayoutParams plp = new LayoutParams(dp(200), dp(3));
-        plp.topMargin = dp(9);
-        texts.addView(progress, plp);
-        addView(texts);
+        equalizer.setBounds(0, 0, equalizer.getIntrinsicWidth() * 3 / 4, equalizer.getIntrinsicHeight() * 3 / 4);
+        title.setCompoundDrawablesRelative(equalizer, null, null, null);
+        title.setCompoundDrawablePadding(dp(8));
+        addView(title);
+        artist = text(ctx, font, 13, 400, 0xA6FFFFFF);
+        artist.setMaxWidth(dp(130));
+        artist.setPadding(dp(8), 0, 0, 0);
+        addView(artist);
 
-        prev = button(ctx, backdrop, R.drawable.ic_prev);
-        toggle = button(ctx, backdrop, R.drawable.ic_pause);
-        next = button(ctx, backdrop, R.drawable.ic_next);
+        prev = button(ctx, R.drawable.ic_prev);
+        toggle = button(ctx, R.drawable.ic_pause);
+        next = button(ctx, R.drawable.ic_next);
         prev.setOnClickListener(v -> {
             if (track != null) NowPlaying.previous(track);
         });
@@ -117,47 +109,44 @@ final class NowPlayingCard extends LinearLayout {
                     return false;
             }
         };
-        int gap = dp(8);
         for (ImageView b : new ImageView[] {prev, toggle, next}) {
             b.setOnLongClickListener(open);
             b.setOnKeyListener(keys);
-            LayoutParams lp = new LayoutParams(dp(42), dp(42));
-            lp.leftMargin = b == prev ? 0 : gap;
+            LayoutParams lp = new LayoutParams(dp(BUTTON), dp(BUTTON));
+            lp.leftMargin = dp(b == prev ? 12 : 2);
             addView(b, lp);
         }
     }
 
-    /** Shows the track (dimmed and still while paused), or hides the card for null. */
+    /** Shows the track (dimmed and still while paused). */
     void bind(NowPlaying.Track t) {
         track = t;
-        handler.removeCallbacks(tick);
         if (t == null) {
             equalizer.stop();
             return;
         }
         title.setText(t.title);
-        artist.setText(t.artist);
+        artist.setText(t.artist.isEmpty() ? "" : "·  " + t.artist);
         artist.setVisibility(t.artist.isEmpty() ? GONE : VISIBLE);
         // Apps like Spotify briefly send their own icon instead of the cover when play/pause changes:
         // keep the cover for the same song, and only take an icon when there is nothing better.
         String key = t.title + '\u0000' + t.artist;
         boolean sameSong = key.equals(artKey);
         if (t.art != null && (!sameSong || (t.artIsCover && !artIsCover))) {
-            art.setImageBitmap(MainActivity.roundedArt(t.art, dp(56)));
+            art.setImageBitmap(MainActivity.roundedArt(t.art, dp(ART), 0.5f));
             art.setVisibility(VISIBLE);
+            setTint(coverColor(t.art));
             artKey = key;
             artIsCover = t.artIsCover;
         } else if (t.art == null && !sameSong) {
             art.setVisibility(GONE);
+            setTint(0);
             artKey = key;
             artIsCover = false;
         }
         toggle.setImageResource(t.playing ? R.drawable.ic_pause : R.drawable.ic_play);
         if (t.playing) equalizer.start();
         else equalizer.stop();
-        progress.setVisibility(t.duration > 0 ? VISIBLE : INVISIBLE);
-        updateProgress();
-        if (t.playing) handler.postDelayed(tick, 1000);
     }
 
     boolean hasTrack() {
@@ -170,20 +159,37 @@ final class NowPlayingCard extends LinearLayout {
     }
 
     void stop() {
-        handler.removeCallbacks(tick);
         equalizer.stop();
     }
 
-    private void updateProgress() {
-        if (track == null || track.duration <= 0) return;
-        long pos = track.position();
-        progress.set(pos < 0 ? 0f : pos / (float) track.duration);
+    /** The cover's colour, from left to right: strong behind the cover, gone by the buttons. */
+    private void setTint(int color) {
+        int c = color & 0x00FFFFFF;
+        tint.setColors(color == 0 ? new int[] {0, 0}
+                : new int[] {0x8C000000 | c, 0x40000000 | c, 0x0D000000 | c});
     }
 
-    private ImageView button(Context ctx, Backdrop backdrop, int icon) {
+    /**
+     * A colour for the glass from the cover: its average, made a little more vivid and kept mid-bright,
+     * so a dark or washed-out cover still gives a visible tint and a bright one doesn't glare.
+     */
+    private static int coverColor(android.graphics.Bitmap art) {
+        android.graphics.Bitmap one = android.graphics.Bitmap.createScaledBitmap(art, 1, 1, true);
+        int avg = one.getPixel(0, 0);
+        if (one != art) one.recycle();
+        float[] hsv = new float[3];
+        android.graphics.Color.colorToHSV(avg, hsv);
+        hsv[1] = Math.min(1f, hsv[1] * 1.4f);
+        hsv[2] = Math.max(0.45f, Math.min(0.75f, hsv[2]));
+        return android.graphics.Color.HSVToColor(hsv);
+    }
+
+    private ImageView button(Context ctx, int icon) {
         ImageView b = new ImageView(ctx);
         b.setImageResource(icon);
-        b.setScaleType(ImageView.ScaleType.CENTER);
+        b.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int p = dp(8);
+        b.setPadding(p, p, p, p);
         b.setFocusable(true);
         b.setClickable(true);
         GradientDrawable on = new GradientDrawable();
@@ -191,7 +197,7 @@ final class NowPlayingCard extends LinearLayout {
         on.setColor(0xF5FFFFFF);
         StateListDrawable bg = new StateListDrawable();
         bg.addState(new int[] {android.R.attr.state_focused}, on);
-        bg.addState(new int[] {}, new GlassDrawable(b, backdrop, dp(21), density));
+        bg.addState(new int[] {}, new ColorDrawable(0x00000000));   // unfocused: the icon on the pill's glass
         b.setBackground(bg);
         b.setImageTintList(new ColorStateList(new int[][] {{android.R.attr.state_focused}, {}},
                 new int[] {0xFF111111, 0xFFFFFFFF}));
@@ -205,38 +211,14 @@ final class NowPlayingCard extends LinearLayout {
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setIncludeFontPadding(false);
-        if (font != null) t.setTypeface(Build.VERSION.SDK_INT >= 28 ? Typeface.create(font, weight, false) : font);
+        // Outfit is a variable font: set the weight on its axis, as the layouts do, so the song reads like
+        // the prayer pill beside it.
+        if (font != null) t.setTypeface(font);
+        t.setFontVariationSettings("'wght' " + weight);
         return t;
     }
 
     private int dp(int v) {
         return Math.round(v * density);
-    }
-
-    /** A thin rounded track with a white fill. */
-    private static final class Progress extends View {
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final RectF r = new RectF();
-        private float fraction;
-
-        Progress(Context ctx) {
-            super(ctx);
-        }
-
-        void set(float f) {
-            fraction = Math.max(0f, Math.min(1f, f));
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(Canvas c) {
-            float h = getHeight(), w = getWidth();
-            r.set(0, 0, w, h);
-            paint.setColor(0x40FFFFFF);
-            c.drawRoundRect(r, h / 2, h / 2, paint);
-            r.set(0, 0, Math.max(h, w * fraction), h);
-            paint.setColor(0xFFFFFFFF);
-            c.drawRoundRect(r, h / 2, h / 2, paint);
-        }
     }
 }

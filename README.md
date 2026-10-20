@@ -2,7 +2,7 @@
 
 <p align="center">My Xiaomi TV, minus the ads: a clean home screen, a richer screensaver and live channels.</p>
 
-![The home screen: today's photo, glass buttons and dock, the song playing above the dock](docs/screenshot-home.png)
+![The home screen: today's photo, the next prayer under the clock, the song playing under the glass buttons, and the dock](docs/screenshot-home.png)
 
 <table>
   <tr>
@@ -15,7 +15,7 @@
   </tr>
 </table>
 
-![The screensaver: photo of the day, time and weather top left](docs/screenshot-screensaver.jpg)
+![The screensaver: photo of the day, time and weather top left, the song playing bottom left](docs/screenshot-screensaver.jpg)
 
 **Built and tested on** a Xiaomi MiTV-MOOR2 (venom), Google TV / Android 11, MediaTek, 1080p.
 
@@ -23,9 +23,10 @@
 
 - **Debloat**: [`debloat.txt`](debloat.txt) disables 39 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
-- **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock; a dock of four apps and five smaller tiles per row below it. Hold OK on a tile to move it. English and Arabic.
-- **Now playing**: while Spotify or another music app plays, a glass card above the dock with the album art, song, progress and previous / play-pause / next buttons. Hold OK on it to open the app.
-- **Screensaver**: photos of the day with a slow zoom, the time and weather top left, the song playing bottom left, and a thikr with its source bottom right, a new one every minute.
+- **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock and the next prayer with a countdown under it; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
+- **Now playing**: while Spotify or another music app plays, a slim glass pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
+- **Screensaver**: photos of the day with a slow zoom, the time, weather and today's prayer times top left, the song playing bottom left, and a thikr with its source bottom right, a new one every minute.
+- **Your choice**: prayer times on Home, prayer times on the screensaver and athkar can each be switched On or Off from the Settings button, no rebuild needed.
 - **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search), **Prayer Times** (Morocco method, countdown to the next prayer) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish). They show up on the home screen as cards.
 
 ## Install

@@ -106,8 +106,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View btnInputs;
     /** Null when now_playing is off. */
     private NowPlayingCard nowCard;
-    /** False while focus is in the grid rows below the dock, where the card would cover tiles. */
-    private boolean cardAllowed = true;
     /** The blurred picture behind the glass (photo of the day or a theme's wallpaper). */
     private final Backdrop backdrop = new Backdrop();
     private boolean homePhotoOn;
@@ -128,7 +126,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean homePrayer;
     private String prayerLat, prayerLon;
     private int prayerMethod;
-    private View prayerPill, prayerBar;
+    private View prayerPill;
     private TextView prayerName, prayerTime, prayerLeft;
     private ImageView prayerIcon;
     /** The last times loaded; kept past midnight until the new day's arrive, a minute out at most. */
@@ -275,9 +273,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         prayerName = findViewById(R.id.prayerName);
         prayerTime = findViewById(R.id.prayerTime);
         prayerLeft = findViewById(R.id.prayerLeft);
-        prayerBar = findViewById(R.id.prayerBar);
         prayerPill.setBackground(new GlassDrawable(prayerPill, backdrop, 19 * density, density));
-        prayerBar.setBackground(prayerBarDrawable());
         // Prayer times use the weather coordinates; without them there is nothing to show.
         if (!cfg.weatherLatitude.isEmpty() && !cfg.weatherLongitude.isEmpty()) {
             prayerLat = cfg.weatherLatitude;
@@ -354,7 +350,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
             }
-            grid.post(this::positionNowCard);
         });
 
         // Keep the glass glued to its tile while the grid scrolls.
@@ -396,7 +391,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Liquid glass top buttons: the blurred photo behind them; solid white while focused.
         for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) pill.setBackground(glassPill(pill));
         if (cfg.nowPlaying) {
-            nowCard = new NowPlayingCard(this, backdrop, getResources().getFont(R.font.outfit), handler,
+            nowCard = new NowPlayingCard(this, backdrop, getResources().getFont(R.font.outfit),
                     new NowPlayingCard.Exits() {
                         @Override
                         public void up() {
@@ -408,9 +403,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                             focusTile(lastFocused % COLUMNS);
                         }
                     });
-            root.addView(nowCard, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT));
-            nowCard.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> positionNowCard());
+            FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            ((ViewGroup) findViewById(R.id.nowSlot)).addView(nowCard, nlp);
             nowPlaying = new NowPlaying(this, handler, this::showNowPlaying);
         }
         btnSettings.setOnClickListener(v -> showSettingsMenu());
@@ -669,12 +664,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int decoratedTop = item.getTop() - (int) (6 * density);
             int dy = decoratedTop - grid.getPaddingTop();
             if (Math.abs(dy) > 1) glide(dy);
-            cardAllowed = true;
-            updateCard();
             showHero(position, r.top - dy);
         } else {
-            cardAllowed = false;
-            updateCard();
             hideHero();
             // Scroll just enough so the whole glass (not only the tile) is visible.
             Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
@@ -705,6 +696,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroName.setY(y);
             heroName.setTranslationX(0f);
             heroName.animate().alpha(1f).setDuration(260).start();
+            TextView caption = findViewById(R.id.photoCaption);
+            if (caption.length() > 0) caption.animate().alpha(1f).setDuration(600).start();
             setAmbient(color);
             ambient.animate().alpha(1f).setDuration(600).start();
             heroShown = true;
@@ -789,6 +782,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
         // the whole screen's colour away.
         heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
+        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
         ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
     }
 
@@ -1134,7 +1128,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         prayerLeft.setText(Prayer.countdown(this, next));
         prayerLeft.setTextColor(due ? PRAYER_GOLD : 0xB3FFFFFF);
         prayerIcon.setImageTintList(android.content.res.ColorStateList.valueOf(PRAYER_GOLD));
-        prayerBar.getBackground().setLevel(Math.round(next.progress * 10000));
         if (prayerPill.getVisibility() != View.VISIBLE) {
             prayerPill.setAlpha(0f);
             prayerPill.setVisibility(View.VISIBLE);
@@ -1159,18 +1152,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 updatePrayer();
             });
         }).start();
-    }
-
-    /** A thin rounded track with the elapsed part in gold; the level (0 to 10000) is the progress. */
-    private Drawable prayerBarDrawable() {
-        android.graphics.drawable.GradientDrawable track = new android.graphics.drawable.GradientDrawable();
-        track.setColor(0x33FFFFFF);
-        track.setCornerRadius(2 * density);
-        android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
-        fill.setColor(PRAYER_GOLD);
-        fill.setCornerRadius(2 * density);
-        return new android.graphics.drawable.LayerDrawable(new Drawable[] {track,
-                new android.graphics.drawable.ClipDrawable(fill, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL)});
     }
 
     /** WMO weather code (as used by Open-Meteo) to an emoji. Also used by ClockDream. */
@@ -1198,43 +1179,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return nowCard != null && nowCard.getVisibility() == View.VISIBLE;
     }
 
-    /** The card shows while something plays or is paused, unless focus is down in the grid rows. */
+    /** The pill shows while something plays or is paused. */
     private void updateCard() {
         if (nowCard == null) return;
-        boolean show = nowCard.hasTrack() && cardAllowed;
+        boolean show = nowCard.hasTrack();
         if (show && nowCard.getVisibility() != View.VISIBLE) {
             nowCard.setVisibility(View.VISIBLE);
-            nowCard.post(() -> {
-                positionNowCard();
-                nowCard.animate().alpha(1f).setDuration(300).start();
-            });
+            nowCard.animate().alpha(1f).setDuration(300).start();
         } else if (!show && nowCard.getVisibility() == View.VISIBLE) {
             if (nowCard.hasFocus()) focusTile(lastFocused % COLUMNS);
             nowCard.animate().alpha(0f).setDuration(300).withEndAction(() -> {
-                if (!nowCard.hasTrack() || !cardAllowed) nowCard.setVisibility(View.GONE);
+                if (!nowCard.hasTrack()) nowCard.setVisibility(View.GONE);
             }).start();
-        }
-    }
-
-    /** Above the dock band, lined up with its left edge, leaving room between them for the app name. */
-    /** Space (dp) between the card and the dock band, where the focused app's name shows. */
-    private static final int HERO_ROOM = 96;
-
-    private void positionNowCard() {
-        if (nowCard == null || grid.getHeight() == 0 || nowCard.getHeight() == 0) return;
-        int[] g = new int[2], r = new int[2];
-        grid.getLocationInWindow(g);
-        root.getLocationInWindow(r);
-        float bandTop = g[1] - r[1] + grid.getPaddingTop() + 6 * density - DockDecoration.PAD_Y * density;
-        // Margins, not setX/setY: focus search goes by layout position and ignores translation.
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) nowCard.getLayoutParams();
-        int left = Math.round(g[0] - r[0] + grid.getPaddingLeft() - DockDecoration.PAD_X * density);
-        int top = Math.round(bandTop - HERO_ROOM * density - nowCard.getHeight());
-        if (lp.leftMargin != left || lp.topMargin != top) {
-            lp.gravity = Gravity.TOP | Gravity.START;
-            lp.leftMargin = left;
-            lp.topMargin = top;
-            nowCard.setLayoutParams(lp);
         }
     }
 
@@ -1262,11 +1218,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 photo.setImageBitmap(bmp);
                 photo.animate().alpha(1f).setDuration(900).withEndAction(this::dropHiddenLayers).start();
                 backdrop.set(blurred, w, h);
-                ((TextView) findViewById(R.id.photoTitle)).setText(p.title);
-                TextView credit = findViewById(R.id.photoCredit);
-                credit.setText(p.credit);
-                credit.setVisibility(p.credit.isEmpty() ? View.GONE : View.VISIBLE);
-                findViewById(R.id.photoCaption).animate().alpha(1f).setDuration(900).start();
+                TextView caption = findViewById(R.id.photoCaption);
+                caption.setText(p.credit.isEmpty() ? p.title : p.title + "  ·  " + p.credit);
+                if (heroShown) caption.animate().alpha(1f).setDuration(900).start();
             });
         }).start();
     }
@@ -1310,10 +1264,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Album art scaled to a square with rounded corners. Also used by ClockDream. */
     static Bitmap roundedArt(Bitmap art, int size) {
+        return roundedArt(art, size, 0.18f);
+    }
+
+    /** The cover cropped square with corners of radius × size; 0.5 gives a circle. */
+    static Bitmap roundedArt(Bitmap art, int size, float radius) {
         Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(out);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        float r = size * 0.18f;
+        float r = size * radius;
         c.drawRoundRect(0, 0, size, size, r, r, p);
         p.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN));
         int side = Math.min(art.getWidth(), art.getHeight());

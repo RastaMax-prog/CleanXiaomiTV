@@ -47,14 +47,11 @@ final class Prayer {
         final int index;
         final int minutesLeft;
         final boolean tomorrow;
-        /** How far through the wait from the previous prayer to this one, 0 to 1. */
-        final float progress;
 
-        Next(int index, int minutesLeft, boolean tomorrow, float progress) {
+        Next(int index, int minutesLeft, boolean tomorrow) {
             this.index = index;
             this.minutesLeft = minutesLeft;
             this.tomorrow = tomorrow;
-            this.progress = progress;
         }
     }
 
@@ -120,19 +117,13 @@ final class Prayer {
         Calendar c = Calendar.getInstance();
         int now = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
         int[] m = day.minutes;
-        int prev = m[KEYS.length - 1] - 24 * 60;   // yesterday's Isha, near enough
         for (int i = 0; i < KEYS.length; i++) {
             if (i == SUNRISE) continue;
-            if (now >= m[i] && now < m[i] + NOW_MINUTES) return new Next(i, m[i] - now, false, 1f);
-            if (m[i] > now) return new Next(i, m[i] - now, false, progress(prev, m[i], now));
-            prev = m[i];
+            if (now >= m[i] && now < m[i] + NOW_MINUTES) return new Next(i, m[i] - now, false);
+            if (m[i] > now) return new Next(i, m[i] - now, false);
         }
         int fajr = m[0] + 24 * 60;   // today's Fajr stands in for tomorrow's, a minute out at most
-        return new Next(0, fajr - now, true, progress(prev, fajr, now));
-    }
-
-    private static float progress(int from, int to, int now) {
-        return to <= from ? 0f : Math.max(0f, Math.min(1f, (now - from) / (float) (to - from)));
+        return new Next(0, fajr - now, true);
     }
 
     static String name(Context ctx, int index) {

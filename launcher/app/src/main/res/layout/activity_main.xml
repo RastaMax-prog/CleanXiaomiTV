@@ -214,8 +214,8 @@
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
 
-            <!-- Next prayer under the clock (home_prayer): moon, name, time, countdown and how far through the
-                 wait since the last prayer. Glass like the pills, but not focusable: it only informs. -->
+            <!-- Next prayer under the clock (home_prayer): moon, name, time and countdown. Glass like the pills,
+                 but not focusable: it only informs. -->
             <LinearLayout
                 android:id="@+id/prayerPill"
                 android:layout_width="wrap_content"
@@ -278,53 +278,17 @@
                     android:fontVariationSettings="'wght' 400"
                     android:includeFontPadding="false" />
 
-                <!-- Time since the last prayer, filled towards this one. -->
-                <View
-                    android:id="@+id/prayerBar"
-                    android:layout_width="42dp"
-                    android:layout_height="3dp"
-                    android:layout_marginStart="12dp" />
             </LinearLayout>
 
-            <!-- Where today's photo was taken, and who took it, under the buttons. -->
-            <LinearLayout
-                android:id="@+id/photoCaption"
+            <!-- The now playing pill (NowPlayingCard, now_playing), right under the buttons while music plays.
+                 Empty and zero high otherwise. -->
+            <FrameLayout
+                android:id="@+id/nowSlot"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/topButtons"
                 android:layout_alignParentEnd="true"
-                android:layout_marginTop="14dp"
-                android:layout_marginEnd="6dp"
-                android:gravity="right"
-                android:orientation="vertical"
-                android:alpha="0">
-
-                <TextView
-                    android:id="@+id/photoTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:maxWidth="420dp"
-                    android:singleLine="true"
-                    android:ellipsize="end"
-                    android:gravity="right"
-                    android:textColor="#E6FFFFFF"
-                    android:textSize="14sp"
-                    android:fontFamily="@font/outfit"
-                    android:fontVariationSettings="'wght' 500" />
-
-                <TextView
-                    android:id="@+id/photoCredit"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:maxWidth="420dp"
-                    android:singleLine="true"
-                    android:ellipsize="end"
-                    android:gravity="right"
-                    android:textColor="#80FFFFFF"
-                    android:textSize="10sp"
-                    android:fontFamily="@font/outfit" />
-            </LinearLayout>
+                android:layout_marginTop="12dp" />
         </RelativeLayout>
 
         <!-- The wrapper clips at the grid's edge; the grid itself must not clip so scaled tiles can overflow their cells.
@@ -358,6 +322,24 @@
         android:layout_height="10dp"
         android:alpha="0"
         android:importantForAccessibility="no" />
+
+    <!-- Where today's photo was taken and who took it: one faint, very small line in the strip under the
+         dock band, at its right end. Shown with the dock only (showHero / hideHero): grid rows scroll there. -->
+    <TextView
+        android:id="@+id/photoCaption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="60dp"
+        android:layout_marginBottom="5dp"
+        android:maxWidth="560dp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="#66FFFFFF"
+        android:textSize="9sp"
+        android:fontFamily="@font/outfit"
+        android:letterSpacing="0.02"
+        android:alpha="0" />
 
     <!-- A small non-modal move hint: the launcher remains visible and the tile moves underneath it. -->
     <TextView
