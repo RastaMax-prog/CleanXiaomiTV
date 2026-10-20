@@ -69,7 +69,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         float radius = 26 * density;
         if (backdrop.bitmap() != null) {
             parent.getLocationOnScreen(loc);
-            GlassDrawable.draw(c, rect, radius, backdrop, loc[0], loc[1], density);
+            GlassDrawable.draw(c, rect, radius, backdrop, loc[0], loc[1], density, 0, GlassDrawable.DOCK_EDGE);
             return;
         }
         c.drawRoundRect(rect, radius, radius, band);
