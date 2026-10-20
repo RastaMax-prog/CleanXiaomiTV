@@ -8,8 +8,8 @@ None of them runs in the background, and each uses the network only to fetch its
 |---|---|
 | ![Weather](docs/weather.png) | ![Prayer Times](docs/prayer.png) |
 | **Weather**: today and a 7-day forecast from [Open-Meteo](https://open-meteo.com). **Change city** searches any city with the remote; **Refresh** reloads. | **Prayer Times**: today's times from [Aladhan](https://aladhan.com) (Morocco method), with the next prayer and a countdown. |
-| ![Channels](docs/channels.png) | ![A channel playing](docs/channels-playing.png) |
-| **Channels**: 35 live channels (Moroccan, news, entertainment, documentary, religious) from free streams the broadcasters publish. OK plays, Up / Down or CH+ / CH- switch channels, Back returns to the grid. | The channel list is in `channels/src/main/res/raw/channels.m3u`; once a day the app takes fresh links and logos for the same channels from [iptv-org](https://github.com/iptv-org/iptv)'s public lists, matched by `tvg-id`. |
+| ![The channel list over a channel playing](docs/channels.png) | ![A channel playing](docs/channels-playing.png) |
+| **Channels**: 35 live channels (Moroccan, news, entertainment, documentary, religious) from free streams the broadcasters publish. It opens on the last channel; OK shows the channel list on the side (Left / Right jump between groups), Up / Down or CH+ / CH- switch channels. | The channel list is in `channels/src/main/res/raw/channels.m3u`; once a day the app takes fresh links and logos for the same channels from [iptv-org](https://github.com/iptv-org/iptv)'s public lists, matched by `tvg-id`. |
 
 ## Install
 
