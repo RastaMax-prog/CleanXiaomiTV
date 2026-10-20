@@ -16,20 +16,31 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * Bing's photos of the day, shared by the home screen (today's photo behind everything) and the Clock
- * screensaver (all of them in turn). The list and the photos are kept in the cache directory, so both
- * still have pictures offline. All methods block: call them off the main thread.
+ * Bing's photos of the day, shared by the home screen (a different one every few hours) and the Clock
+ * screensaver (all of them in turn). The list comes from five English-language regions, 15 days back each,
+ * with the photos they share counted once: about 20 to 25 photos instead of one region's 8. It is fetched
+ * at most once a day and kept, with the photos, in the cache directory, so both still have pictures
+ * offline. All methods block: call them off the main thread.
  */
 final class DailyPhoto {
     private static final String TAG = "TvHome.Photo";
-    /** The last 8 photos of the day; urlbase + "_1920x1080.jpg" is the full HD image. */
-    private static final String LIST = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=en-US";
-    private static final int MAX_CACHED = 10;
+    /** English captions; regions often swap in a photo of their own. The first is preferred for shared ones. */
+    private static final String[] REGIONS = {"en-US", "en-GB", "en-AU", "en-IN", "en-CA"};
+    /** Bing keeps 15 days: idx 0 gives days 0 to 7 and idx 7 days 7 to 14; further back repeats them. */
+    private static final int[] FROM = {0, 7};
+    private static final String LIST = "https://www.bing.com/HPImageArchive.aspx?format=js&n=8";
+    private static final int MAX_CACHED = 24;
 
     static final class Photo {
         final String url, key;
@@ -60,41 +71,85 @@ final class DailyPhoto {
         return dir;
     }
 
-    /** Today's list from Bing (saved for offline use), or the last saved list; newest first. */
+    /**
+     * Today's list, newest first: the one saved today if there is one, else fetched from Bing (and saved),
+     * else the last one saved. Empty only offline on a TV that never had a list.
+     */
     static List<Photo> list(Context ctx) {
-        File saved = new File(dir(ctx), "list.json");
-        String json = null;
-        try {
-            json = new String(fetch(LIST), StandardCharsets.UTF_8);
-            try (FileOutputStream out = new FileOutputStream(saved)) {
-                out.write(json.getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "list: " + e);
-            try {
-                json = new String(readAll(new FileInputStream(saved)), StandardCharsets.UTF_8);
-            } catch (Exception ignored) {
+        File saved = new File(dir(ctx), "photos.json");
+        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date());
+        JSONObject cached = readJson(saved);
+        if (cached != null && today.equals(cached.optString("day"))) return parse(cached);
+
+        // Every region, both pages; a photo the regions share is kept once, from the first that has it.
+        Map<String, JSONObject> byName = new LinkedHashMap<>();
+        for (String region : REGIONS) {
+            for (int from : FROM) {
+                try {
+                    JSONArray images = new JSONObject(new String(fetch(LIST + "&mkt=" + region + "&idx=" + from),
+                            StandardCharsets.UTF_8)).getJSONArray("images");
+                    for (int i = 0; i < images.length(); i++) {
+                        JSONObject im = images.getJSONObject(i);
+                        String name = name(im.getString("urlbase"));
+                        if (!byName.containsKey(name)) byName.put(name, im);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "list " + region + "/" + from + ": " + e);
+                }
             }
         }
-        List<Photo> out = new ArrayList<>();
-        if (json == null) return out;
+        if (byName.isEmpty()) return cached != null ? parse(cached) : new ArrayList<>();
+        List<JSONObject> images = new ArrayList<>(byName.values());
+        Collections.sort(images, (a, b) -> b.optString("startdate").compareTo(a.optString("startdate")));
         try {
-            JSONArray images = new JSONObject(json).getJSONArray("images");
-            for (int i = 0; i < images.length(); i++) {
-                JSONObject im = images.getJSONObject(i);
-                String base = im.getString("urlbase");
-                String copyright = im.optString("copyright", "");
-                String title = copyright, credit = "";
-                int paren = copyright.lastIndexOf(" (");
-                if (paren > 0 && copyright.endsWith(")")) {
-                    title = copyright.substring(0, paren);
-                    credit = copyright.substring(paren + 2, copyright.length() - 1);
-                }
-                out.add(new Photo("https://www.bing.com" + base + "_1920x1080.jpg",
-                        base.replaceAll("[^A-Za-z0-9._-]", "_"), title, credit));
+            JSONObject out = new JSONObject().put("day", today).put("images", new JSONArray(images));
+            // Written aside and renamed: Home and the screensaver may both be saving it.
+            File tmp = new File(dir(ctx), "photos.json." + android.os.Process.myTid());
+            try (FileOutputStream f = new FileOutputStream(tmp)) {
+                f.write(out.toString().getBytes(StandardCharsets.UTF_8));
             }
+            if (!tmp.renameTo(saved)) tmp.delete();
+            return parse(out);
         } catch (Exception e) {
-            Log.w(TAG, "list parse: " + e);
+            Log.w(TAG, "list save: " + e);
+            return new ArrayList<>();
+        }
+    }
+
+    /** "/th?id=OHR.BrownSloth_EN-US123" -> "BrownSloth": the same photo has a different id per region. */
+    private static String name(String urlbase) {
+        String n = urlbase.substring(urlbase.lastIndexOf('.') + 1);
+        int us = n.indexOf('_');
+        return us > 0 ? n.substring(0, us) : n;
+    }
+
+    private static JSONObject readJson(File f) {
+        if (!f.isFile()) return null;
+        try {
+            return new JSONObject(new String(readAll(new FileInputStream(f)), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static List<Photo> parse(JSONObject list) {
+        List<Photo> out = new ArrayList<>();
+        JSONArray images = list.optJSONArray("images");
+        if (images == null) return out;
+        for (int i = 0; i < images.length(); i++) {
+            JSONObject im = images.optJSONObject(i);
+            if (im == null) continue;
+            String base = im.optString("urlbase");
+            if (base.isEmpty()) continue;
+            String copyright = im.optString("copyright", "");
+            String title = copyright, credit = "";
+            int paren = copyright.lastIndexOf(" (");
+            if (paren > 0 && copyright.endsWith(")")) {
+                title = copyright.substring(0, paren);
+                credit = copyright.substring(paren + 2, copyright.length() - 1);
+            }
+            out.add(new Photo("https://www.bing.com" + base + "_1920x1080.jpg",
+                    base.replaceAll("[^A-Za-z0-9._-]", "_"), title, credit));
         }
         return out;
     }

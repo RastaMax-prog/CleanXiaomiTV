@@ -276,10 +276,11 @@ public class ClockDream extends DreamService {
 
     // ---- photos ---------------------------------------------------------------------------------
 
-    /** Today's list from Bing, or the last list saved when offline; then the first photo. */
+    /** Today's list from Bing, or the last list saved when offline, in a new order each time; then the first photo. */
     private void loadPhotoList() {
         io.execute(() -> {
             List<DailyPhoto.Photo> list = DailyPhoto.list(this);
+            java.util.Collections.shuffle(list, random);
             handler.post(() -> {
                 photos.clear();
                 photos.addAll(list);

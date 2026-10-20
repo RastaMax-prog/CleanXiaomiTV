@@ -19,7 +19,10 @@ import java.util.List;
 /**
  * What is playing in any music app (Spotify, YouTube Music, ...), from Android's media sessions.
  * Needs notification access for MediaListener (granted at install); without it, start() does nothing.
- * Reports the playing session first, else a paused one, else nothing.
+ * Reports the playing session first, else a paused one, else nothing. A paused one counts only if it was
+ * seen playing (so a video left paused in its app doesn't show up as a song on Home), and only for
+ * PAUSED_FOR_MS after it was first seen paused: apps re-send their paused state now and then, which must
+ * not bring it back.
  */
 final class NowPlaying {
     private static final String TAG = "TvHome.NowPlaying";
@@ -70,6 +73,9 @@ final class NowPlaying {
     private final ComponentName component;
     private MediaSessionManager msm;
     private final List<MediaController> controllers = new ArrayList<>();
+    /** Sessions seen playing, and when each was first seen paused since (elapsedRealtime). Kept across stop(). */
+    private final java.util.Set<android.media.session.MediaSession.Token> seenPlaying = new java.util.HashSet<>();
+    private final java.util.Map<android.media.session.MediaSession.Token, Long> pausedSince = new java.util.HashMap<>();
 
     private final MediaController.Callback callback = new MediaController.Callback() {
         @Override
@@ -127,12 +133,16 @@ final class NowPlaying {
     private void track(List<MediaController> list) {
         for (MediaController c : controllers) c.unregisterCallback(callback);
         controllers.clear();
+        java.util.Set<android.media.session.MediaSession.Token> live = new java.util.HashSet<>();
         if (list != null) {
             for (MediaController c : list) {
                 c.registerCallback(callback, handler);
                 controllers.add(c);
+                live.add(c.getSessionToken());
             }
         }
+        seenPlaying.retainAll(live);
+        pausedSince.keySet().retainAll(live);
         publish();
     }
 
@@ -141,14 +151,23 @@ final class NowPlaying {
         MediaController best = null;
         boolean bestPlaying = false;
         long pausedLeft = -1;   // ms until the paused candidate expires
+        long now = android.os.SystemClock.elapsedRealtime();
         for (MediaController c : controllers) {
             PlaybackState s = c.getPlaybackState();
             if (s == null || c.getMetadata() == null) continue;
+            android.media.session.MediaSession.Token token = c.getSessionToken();
             int st = s.getState();
             boolean playing = st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING;
-            boolean paused = st == PlaybackState.STATE_PAUSED;
+            boolean paused = st == PlaybackState.STATE_PAUSED && seenPlaying.contains(token);
+            if (playing) seenPlaying.add(token);
+            if (st != PlaybackState.STATE_PAUSED) pausedSince.remove(token);
             if (paused) {
-                long left = PAUSED_FOR_MS - (android.os.SystemClock.elapsedRealtime() - s.getLastPositionUpdateTime());
+                Long since = pausedSince.get(token);
+                if (since == null) {
+                    since = Math.min(now, s.getLastPositionUpdateTime());
+                    pausedSince.put(token, since);
+                }
+                long left = PAUSED_FOR_MS - (now - since);
                 if (left <= 0) paused = false;   // paused too long ago: gone
                 else if (best == null) pausedLeft = left;
             }

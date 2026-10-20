@@ -109,8 +109,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The blurred picture behind the glass (photo of the day or a theme's wallpaper). */
     private final Backdrop backdrop = new Backdrop();
     private boolean homePhotoOn;
-    /** The day (yyyy-MM-dd) the home photo is for; null until one is shown. */
-    private String photoDay;
+    /** The three-hour slot (yyyy-MM-dd/h) the home photo is for; null until one is shown. */
+    private String photoSlot;
+    /** Hours a home photo stays before the next one. */
+    private static final int PHOTO_HOURS = 3;
     /** Null when now_playing is off. */
     private NowPlaying nowPlaying;
     private NowPlaying.Track track;
@@ -222,6 +224,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateWifiLabel();
             updateWeather();
             updatePrayer();
+            if (homePhotoOn) loadHomePhoto();   // a new photo when the next slot starts
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -1199,24 +1202,48 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Today's photo behind the home screen, once a day; the glass follows it. */
     private void loadHomePhoto() {
-        String day = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(new java.util.Date());
-        if (day.equals(photoDay)) return;
-        photoDay = day;
+        Calendar now = Calendar.getInstance();
+        String slot = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(now.getTime())
+                + '/' + now.get(Calendar.HOUR_OF_DAY) / PHOTO_HOURS;
+        if (slot.equals(photoSlot)) return;
+        photoSlot = slot;
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         final int w = dm.widthPixels, h = dm.heightPixels;
         new Thread(() -> {
             java.util.List<DailyPhoto.Photo> list = DailyPhoto.list(this);
-            Bitmap bmp = list.isEmpty() ? null : DailyPhoto.load(this, list.get(0), w);
+            // A random photo from the list for each slot, the same one all through the slot. If it can't
+            // be had (offline and not cached), the next ones in the list, up to three.
+            int start = list.isEmpty() ? 0 : new java.util.Random(slot.hashCode()).nextInt(list.size());
+            DailyPhoto.Photo chosen = null;
+            Bitmap loaded = null;
+            for (int i = 0; i < Math.min(3, list.size()) && loaded == null; i++) {
+                chosen = list.get((start + i) % list.size());
+                loaded = DailyPhoto.load(this, chosen, w);
+            }
+            final Bitmap bmp = loaded;
+            final DailyPhoto.Photo p = chosen;
             if (bmp != null) bakeScrim(bmp);
             Bitmap blurred = bmp == null ? null : Backdrop.blur(bmp, w, h);
             handler.post(() -> {
                 if (bmp == null) {
-                    photoDay = null;   // offline with nothing cached: try again next time Home opens
+                    photoSlot = null;   // offline with nothing cached: try again in a minute
                     return;
                 }
-                DailyPhoto.Photo p = list.get(0);
                 ImageView photo = findViewById(R.id.homePhoto);
-                photo.setImageBitmap(bmp);
+                Drawable old = photo.getDrawable();
+                if (old != null && photo.getAlpha() > 0f) {
+                    // Already showing one: cross-fade to the new photo, then drop the old bitmap.
+                    android.graphics.drawable.TransitionDrawable fade = new android.graphics.drawable.TransitionDrawable(
+                            new Drawable[] {old, new BitmapDrawable(getResources(), bmp)});
+                    fade.setCrossFadeEnabled(true);
+                    photo.setImageDrawable(fade);
+                    fade.startTransition(1500);
+                    photo.postDelayed(() -> {
+                        if (photo.getDrawable() == fade) photo.setImageBitmap(bmp);
+                    }, 1600);
+                } else {
+                    photo.setImageBitmap(bmp);
+                }
                 photo.animate().alpha(1f).setDuration(900).withEndAction(this::dropHiddenLayers).start();
                 backdrop.set(blurred, w, h);
                 TextView caption = findViewById(R.id.photoCaption);
