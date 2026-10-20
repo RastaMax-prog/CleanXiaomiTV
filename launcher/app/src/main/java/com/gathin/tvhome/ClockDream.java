@@ -45,7 +45,8 @@ import java.util.concurrent.Executors;
  * The weather line uses the home screen's weather settings. Network work runs on one background thread.
  * With now_playing on, the song a music app is playing shows in the top left corner (NowPlaying).
  * With dream_prayer on, today's prayer times sit under the weather, the next one lit (Prayer).
- * dream_athkar and dream_prayer can be switched from the home screen's Settings menu (Config.setToggle).
+ * With dream_analog on, an analog clock (AnalogClockView) takes the digital clock's place.
+ * dream_athkar, dream_prayer and dream_analog can be switched from the home screen's Settings menu (Config.setToggle).
  */
 public class ClockDream extends DreamService {
     private static final String TAG = "TvHome.Dream";
@@ -124,6 +125,10 @@ public class ClockDream extends DreamService {
         Config cfg = Config.load(this);
 
         content = findViewById(R.id.dreamContent);
+        if (cfg.dreamAnalog) {
+            findViewById(R.id.dreamAnalog).setVisibility(View.VISIBLE);
+            findViewById(R.id.dreamDigital).setVisibility(View.GONE);
+        }
         ambient = findViewById(R.id.dreamAmbient);
         glow = new GradientDrawable();
         glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);

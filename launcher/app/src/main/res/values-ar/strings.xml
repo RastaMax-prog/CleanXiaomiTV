@@ -64,6 +64,7 @@
     <string name="toggle_home_prayer">مواقيت الصلاة في الرئيسية</string>
     <string name="toggle_dream_prayer">مواقيت الصلاة في شاشة التوقف</string>
     <string name="toggle_dream_athkar">الأذكار في شاشة التوقف</string>
+    <string name="toggle_dream_analog">ساعة بعقارب في شاشة التوقف</string>
     <string name="toggle_on">مفعّل</string>
     <string name="toggle_off">معطّل</string>
     <string name="prayer_fajr">الفجر</string>

@@ -64,6 +64,7 @@
     <string name="toggle_home_prayer">Prayer times on Home</string>
     <string name="toggle_dream_prayer">Prayer times on screensaver</string>
     <string name="toggle_dream_athkar">Athkar on screensaver</string>
+    <string name="toggle_dream_analog">Analog clock on screensaver</string>
     <string name="toggle_on">On</string>
     <string name="toggle_off">Off</string>
     <string name="prayer_fajr">Fajr</string>

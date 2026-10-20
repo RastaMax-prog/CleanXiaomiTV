@@ -920,6 +920,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_dream_prayer, Config.DREAM_PRAYER, cfg.dreamPrayer, null);
         }
         addToggleRow(rows, R.drawable.ic_athkar, R.string.toggle_dream_athkar, Config.DREAM_ATHKAR, cfg.dreamAthkar, null);
+        addToggleRow(rows, R.drawable.ic_clock, R.string.toggle_dream_analog, Config.DREAM_ANALOG, cfg.dreamAnalog, null);
 
         for (int i = 0; i < rows.getChildCount(); i++) {
             final int index = i;

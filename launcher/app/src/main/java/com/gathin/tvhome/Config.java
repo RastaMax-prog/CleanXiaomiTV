@@ -25,7 +25,7 @@ import java.util.List;
  * unknown or badly typed key is ignored, so a theme can change the dock and the look without a rebuild:
  * {@code tools/theme.sh themes/<name>} pushes a theme folder there and restarts Home.
  *
- * The few switches in the Settings menu (athkar and prayer times) are saved on the TV and win over both.
+ * The few switches in the Settings menu (athkar, prayer times, the analog clock) are saved on the TV and win over both.
  *
  * Read once in {@link MainActivity#onCreate}; nothing here touches the network.
  */
@@ -49,6 +49,8 @@ final class Config {
     /** Today's prayer times under the clock on Home, and on the screensaver; at the weather coordinates. */
     final boolean homePrayer;
     final boolean dreamPrayer;
+    /** An analog clock on the screensaver instead of the digital one. */
+    final boolean dreamAnalog;
     /** Aladhan calculation method (21 = Morocco, 3 = Muslim World League, ...). */
     final int prayerMethod;
     final boolean dreamPhotos;
@@ -71,7 +73,7 @@ final class Config {
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int gridColumns, int rowsBelowDock,
-                   boolean shamsiDate, boolean dreamAthkar, boolean homePrayer, boolean dreamPrayer, int prayerMethod, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
+                   boolean shamsiDate, boolean dreamAthkar, boolean homePrayer, boolean dreamPrayer, boolean dreamAnalog, int prayerMethod, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -88,6 +90,7 @@ final class Config {
         this.dreamAthkar = dreamAthkar;
         this.homePrayer = homePrayer;
         this.dreamPrayer = dreamPrayer;
+        this.dreamAnalog = dreamAnalog;
         this.prayerMethod = prayerMethod;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
@@ -124,6 +127,7 @@ final class Config {
         boolean athkar = res.getBoolean(R.bool.dream_athkar);
         boolean homePrayer = res.getBoolean(R.bool.home_prayer);
         boolean dreamPrayer = res.getBoolean(R.bool.dream_prayer);
+        boolean dreamAnalog = res.getBoolean(R.bool.dream_analog);
         int prayerMethod = res.getInteger(R.integer.prayer_method);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
@@ -157,6 +161,7 @@ final class Config {
             athkar = bool(json, "dream_athkar", athkar);
             homePrayer = bool(json, "home_prayer", homePrayer);
             dreamPrayer = bool(json, "dream_prayer", dreamPrayer);
+            dreamAnalog = bool(json, "dream_analog", dreamAnalog);
             prayerMethod = integer(json, "prayer_method", prayerMethod, 0, 99);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
@@ -174,6 +179,7 @@ final class Config {
         athkar = toggles.getBoolean(DREAM_ATHKAR, athkar);
         homePrayer = toggles.getBoolean(HOME_PRAYER, homePrayer);
         dreamPrayer = toggles.getBoolean(DREAM_PRAYER, dreamPrayer);
+        dreamAnalog = toggles.getBoolean(DREAM_ANALOG, dreamAnalog);
 
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
@@ -181,13 +187,14 @@ final class Config {
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, homePrayer, dreamPrayer, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
+                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), shamsi, athkar, homePrayer, dreamPrayer, dreamAnalog, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings, background,
                 wallpaper, applied);
     }
 
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
-    static final String DREAM_ATHKAR = "dream_athkar", HOME_PRAYER = "home_prayer", DREAM_PRAYER = "dream_prayer";
+    static final String DREAM_ATHKAR = "dream_athkar", HOME_PRAYER = "home_prayer", DREAM_PRAYER = "dream_prayer",
+            DREAM_ANALOG = "dream_analog";
 
     private static SharedPreferences toggles(Context ctx) {
         return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);

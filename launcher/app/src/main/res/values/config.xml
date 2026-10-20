@@ -53,6 +53,8 @@
          These two and dream_athkar can also be switched on the TV: Settings pill, then the rows at the bottom. -->
     <bool name="home_prayer">true</bool>
     <bool name="dream_prayer">true</bool>
+    <!-- An analog clock on the Clock screensaver instead of the digital one. Also a switch in the Settings menu. -->
+    <bool name="dream_analog">true</bool>
     <!-- Aladhan calculation method: 21 Morocco, 3 Muslim World League, 2 ISNA (North America), 4 Umm al-Qura,
          5 Egypt, 12 France, 13 Turkey; the full list is on aladhan.com/calculation-methods. -->
     <integer name="prayer_method">21</integer>
