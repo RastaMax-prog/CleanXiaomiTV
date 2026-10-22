@@ -114,6 +114,13 @@ final class DockEditor {
                 .apply();
     }
 
+    /** True when the owner's saved app order already has a place for this package. */
+    static boolean isPlaced(Context ctx, String pkg) {
+        String raw = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(APP_ORDER_KEY, "");
+        for (String saved : raw.split("\\n")) if (saved.trim().equals(pkg)) return true;
+        return false;
+    }
+
     static void saveAppOrder(Context ctx, List<String> order) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString(APP_ORDER_KEY, TextUtils.join("\n", order))

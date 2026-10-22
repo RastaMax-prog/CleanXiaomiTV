@@ -628,7 +628,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final int returnSlot = lastFocused;
         final List<Cards.Card> none = Collections.emptyList();
         cards = moduleCards ? CardFeature.run(() -> Cards.discover(this, hiddenApps, Cards.load(Cards.storeFile(this))), none) : none;
-        adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none));
+        Set<String> hiddenCards = new HashSet<>();
+        for (Cards.Card c : cards) if (c.state == Cards.State.HIDDEN) hiddenCards.add(c.pkg);
+        adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none), hiddenCards);
         lastFocusedKey = returnKey;
         lastFocused = returnSlot;
         packageSequence = currentPackageSequence(packageSequence);
@@ -1891,6 +1893,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!saved) {
             Toast.makeText(this, R.string.card_not_saved, Toast.LENGTH_SHORT).show();
             promptsPaused = true;
+        } else if (show && !dockApps.contains(card.pkg) && !DockEditor.isPlaced(this, card.pkg)) {
+            // A newly shown card starts first in the grid; once the owner has placed it, it keeps that place.
+            appOrder = DockEditor.loadAppOrder(this, dockApps);
+            appOrder.remove(card.pkg);
+            appOrder.add(0, card.pkg);
+            DockEditor.saveAppOrder(this, appOrder);
+            adapter.setAppOrder(appOrder);
         }
         reloadTiles();
     }

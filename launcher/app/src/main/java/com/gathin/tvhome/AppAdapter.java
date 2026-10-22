@@ -156,8 +156,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     /**
      * Rebuilds the tiles. A shown module card stands in for every tile of its package (same component,
      * so focus follows it); hidden_apps wins over a card, and a card's package in dock_apps takes that slot.
+     * A card the owner chose to hide takes its app off the grid too (a dock slot the owner pinned stays).
      */
-    void reload(List<Cards.Card> cards) {
+    void reload(List<Cards.Card> cards, Set<String> hiddenCards) {
         PackageManager pm = ctx.getPackageManager();
         Intent probe = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> found = pm.queryIntentActivities(probe, 0);
@@ -200,7 +201,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName;
-            if (pkg.equals(ctx.getPackageName()) || hidden.contains(pkg) || favourites.contains(pkg)) continue;
+            if (pkg.equals(ctx.getPackageName()) || hidden.contains(pkg) || favourites.contains(pkg)
+                    || hiddenCards.contains(pkg)) continue;
             ComponentName component = new ComponentName(pkg, ri.activityInfo.name);
             Cards.Card card = cardByPkg.get(pkg);
             if (card != null && !card.component.equals(component)) continue;   // the card stands in for this tile
@@ -217,9 +219,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         int dockCount = Math.min(dockSize, fresh.size());
         List<Entry> gridEntries = new ArrayList<>(fresh.subList(dockCount, fresh.size()));
         Collections.sort(gridEntries, (a, b) -> {
-            // Cards come right after the configured dock apps, before the alphabetical grid.
-            boolean ca = a.kind == Entry.CARD, cb = b.kind == Entry.CARD;
-            if (ca != cb) return ca ? -1 : 1;
+            // Cards follow the owner's order like any app; a newly shown card was put first in it (decideCard).
             int oa = appOrder.indexOf(a.pkg), ob = appOrder.indexOf(b.pkg);
             if (oa >= 0 || ob >= 0) {
                 if (oa < 0) return 1;
@@ -413,10 +413,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return position >= 0 && position < dockSize && isFocusableAt(position);
     }
 
-    /** True for a normal installed application in the reorderable grid, excluding module cards. */
+    /** True for an installed application or a module card in the reorderable grid. */
     boolean isReorderableAppAt(int position) {
         return position >= dockSize && position < items.size()
-                && items.get(position).kind == Entry.APP;
+                && (items.get(position).kind == Entry.APP || items.get(position).kind == Entry.CARD);
     }
 
     /** Package name for the visible tile at a position, or null for an empty/invalid slot. */
