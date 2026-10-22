@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.ChangedPackages;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -167,6 +168,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private Dialog cardPrompt;
     /** Set when a decision could not be saved: no more prompts until the next resume, instead of asking in a loop. */
     private boolean promptsPaused;
+    /** Rebuild the tiles on the way back to Home only when apps changed meanwhile (TileRefresh). */
+    private final TileRefresh tileRefresh = new TileRefresh();
+    /** PackageManager's change counter at the last rebuild, to catch a package broadcast that never arrived. */
+    private int packageSequence;
     /** The Inputs or Module cards dropdown while one is open, so onPause can close it. */
     private PopupWindow openPopup;
 
@@ -214,6 +219,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Updates send REMOVED followed by ADDED; keep the tile until the new APK is ready.
             if (Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())
                     && intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return;
+            // In the background this only marks the tiles stale; onResume rebuilds them once.
+            if (!tileRefresh.onPackagesChanged()) return;
             reloadApps(false);
         }
     };
@@ -463,6 +470,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         packageFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         packageFilter.addAction(Intent.ACTION_PACKAGE_CHANGED);
         packageFilter.addDataScheme("package");
+        // Registered for the activity's whole life, not only while it is resumed: an app installed or updated while
+        // another app is in front must still mark the tiles stale, or Home would have to rebuild on every return.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(packageReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(packageReceiver, packageFilter);
+        }
 
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -504,16 +518,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        tileRefresh.onStart();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(packageReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(packageReceiver, packageFilter);
-        }
-        tilesReady = false;
         promptsPaused = false;
-        reloadApps(true);
+        switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
+            case REBUILD:
+                tilesReady = false;
+                reloadApps(true);
+                break;
+            case REFOCUS:
+                // The same tiles: only the focus goes back, as after a rebuild, without replaying the entrance.
+                tilesReady = false;
+                reloadApps(true, false);
+                break;
+            default:
+                // Back from a side panel (Wi-Fi, Inputs): Home never left the screen, nothing to redo.
+                break;
+        }
         updateGreeting();
         updateWifiLabel();
         updateWeather();
@@ -526,6 +553,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Rebuilds the tiles (and the module cards), then puts focus back where it was. */
     private void reloadApps(boolean animate) {
+        reloadApps(animate, true);
+    }
+
+    /**
+     * @param rebuild false keeps the tiles as they are and only puts focus back (TileRefresh.Action.REFOCUS),
+     *                without the entrance animation: on a return to the same tiles it would mark a change that
+     *                didn't happen.
+     */
+    private void reloadApps(boolean animate, boolean rebuild) {
         // Capture the app before rebinding can move focus and overwrite its key.
         final String returnKey = lastFocusedKey;
         final int returnSlot = lastFocused;
@@ -537,8 +573,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroName.setAlpha(0f);
             ambient.setAlpha(0f);
         }
-        reloadTiles();
-        if (animate) grid.scheduleLayoutAnimation();
+        if (rebuild) {
+            reloadTiles();
+            if (animate) grid.scheduleLayoutAnimation();
+        }
 
         if (restoreFocus) {
             // Follow the same app, or the nearest remaining slot when it was removed.
@@ -569,6 +607,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none));
         lastFocusedKey = returnKey;
         lastFocused = returnSlot;
+        packageSequence = currentPackageSequence(packageSequence);
+    }
+
+    /** True when PackageManager reports apps changed since the last rebuild (one binder call). */
+    private boolean packagesChangedSinceRebuild() {
+        ChangedPackages changed = getPackageManager().getChangedPackages(packageSequence);
+        return changed != null && !changed.getPackageNames().isEmpty();
+    }
+
+    private int currentPackageSequence(int since) {
+        ChangedPackages changed = getPackageManager().getChangedPackages(since);
+        return changed != null ? changed.getSequenceNumber() : since;
     }
 
     /**
@@ -589,13 +639,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(packageReceiver);
         handler.removeCallbacks(minuteTick);
         if (nowPlaying != null) nowPlaying.stop();
         if (nowCard != null) nowCard.stop();
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
         if (cardPrompt != null) cardPrompt.dismiss();
         if (openPopup != null) openPopup.dismiss();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        tileRefresh.onStop();
     }
 
     @Override
@@ -607,6 +662,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        unregisterReceiver(packageReceiver);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
