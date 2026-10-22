@@ -20,4 +20,12 @@
     <string name="cant_open">Impossible d\'ouvrir %1$s</string>
     <string name="date_format">EEEE d MMMM</string>
     <string name="dream_name">Horloge</string>
+    <string name="dock_list">Apps du dock et ordre</string>
+    <string name="dock_edit_place_hint">MODIFIER LE DOCK  •  CHOISISSEZ UNE PLACE, PUIS OK  •  RETOUR POUR QUITTER</string>
+    <string name="dock_edit_app_hint">MODIFIER LE DOCK  •  CHOISISSEZ L\'APP POUR CETTE PLACE, PUIS OK  •  RETOUR</string>
+    <string name="apps_per_row">Apps par ligne</string>
+    <string name="animations">Animations</string>
+    <string name="motion_full">Complètes</string>
+    <string name="motion_calm">Calmes</string>
+    <string name="advanced_effects">Effets avancés</string>
 </resources>

@@ -83,6 +83,13 @@
     <!-- How opaque the dock band's glass is over the photo or wallpaper, 0 to 100: 100 is the solid frosted
          band, lower lets more of the picture show through. -->
     <integer name="dock_opacity">55</integer>
+    <!-- Motion. animations false: focus, the highlight and the shelf change without animating. reduced_motion: calmer
+         motion for weak GPUs (a stiff spring, no overshoot, short fades, no tile entrance). advanced_effects: the
+         focused tile lifts with a slight banner zoom, and apps open with a soft transition. All three can also be
+         set on the TV (Settings menu), which wins over this file and a theme. -->
+    <bool name="animations">true</bool>
+    <bool name="reduced_motion">false</bool>
+    <bool name="advanced_effects">false</bool>
 
     <!-- Dock slots. Tiles are 180dp wide at 4 and shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a
          1080p TV). -->

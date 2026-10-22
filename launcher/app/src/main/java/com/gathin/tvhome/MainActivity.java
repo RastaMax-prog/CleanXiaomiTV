@@ -145,6 +145,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // scroll moves the glass in lockstep with its tile instead of becoming a moving spring target.
     private float glassScrollShift;
     private boolean glassShown;
+    /** Motion settings (Config, or the Settings menu): animations at all, calm motion, advanced effects. */
+    private boolean animations, reducedMotion, advancedEffects;
     // Static so they survive the activity being destroyed while another app is open (low-memory TVs,
     // or Developer options → "Don't keep activities"); they only reset when the process dies.
     private static int lastFocused = 0;
@@ -161,6 +163,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private List<String> appOrder = Collections.emptyList();
     /** Non-modal, on-home-screen reorder mode entered by holding OK on a tile. */
     private boolean reorderMode;
+    /** Edit-dock mode (Settings menu): choose a dock place, then the app to put there. */
+    private boolean dockEditing;
+    /** Dock place being changed in edit-dock mode, or -1 while the place is still being chosen. */
+    private int dockEditSlot = -1;
     private int reorderPosition = -1;
     private List<Cards.Card> cards = Collections.emptyList();
     /** The grid has been laid out and focused since the last resume; the card prompt waits for this. */
@@ -245,6 +251,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Config cfg = Config.load(this);
         COLUMNS = cfg.columns;
         GRID_COLUMNS = cfg.gridColumns;
+        animations = cfg.animations;
+        reducedMotion = cfg.reducedMotion;
+        advancedEffects = cfg.advancedEffects;
         liveTvPkg = cfg.liveTvPackage;
         liveTvAction = cfg.liveTvAction;
         inputAction = cfg.inputAction;
@@ -336,9 +345,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setItemAnimator(null);
         grid.addItemDecoration(new DockDecoration(COLUMNS, density, backdrop, cfg.dockOpacity));
         backdrop.register(grid);
-        grid.setLayoutAnimation(new LayoutAnimationController(
-                AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
+        if (animations) {
+            grid.setLayoutAnimation(new LayoutAnimationController(AnimationUtils.loadAnimation(this,
+                    reducedMotion ? R.anim.tile_enter_reduced : R.anim.tile_enter), reducedMotion ? 0f : 0.06f));
+        }
         adapter = new AppAdapter(this, this, COLUMNS, cfg, dockApps, appOrder);
+        grid.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override
+            public void onChildViewAttachedToWindow(@NonNull View v) {
+                v.setAlpha(tileAlpha(grid.getChildAdapterPosition(v)));
+            }
+
+            @Override
+            public void onChildViewDetachedFromWindow(@NonNull View v) {
+            }
+        });
         grid.setAdapter(adapter);
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
@@ -387,7 +408,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         for (SpringAnimation s : new SpringAnimation[]{springX, springY}) {
-            s.setSpring(new SpringForce().setStiffness(260f).setDampingRatio(0.58f));
+            if (reducedMotion) {
+                // Stiff and almost critically damped: settles in a few frames instead of oscillating,
+                // and stops once the highlight is within 1.5 px of its tile.
+                s.setSpring(new SpringForce().setStiffness(1400f).setDampingRatio(0.95f));
+                s.setMinimumVisibleChange(1.5f);
+            } else {
+                s.setSpring(new SpringForce().setStiffness(advancedEffects ? 320f : 260f)
+                        .setDampingRatio(advancedEffects ? 0.76f : 0.58f));
+            }
         }
 
         btnInputs = findViewById(R.id.btnInputs);
@@ -400,6 +429,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         // Liquid glass top buttons: the blurred photo behind them; solid white while focused.
         for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) pill.setBackground(glassPill(pill));
+        if (advancedEffects) {
+            for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) {
+                pill.setOnFocusChangeListener((view, focused) -> view.animate()
+                        .scaleX(focused ? 1.04f : 1f).scaleY(focused ? 1.04f : 1f).setDuration(160).start());
+            }
+        }
         if (cfg.nowPlaying) {
             nowCard = new NowPlayingCard(this, backdrop, getResources().getFont(R.font.outfit),
                     new NowPlayingCard.Exits() {
@@ -575,7 +610,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (rebuild) {
             reloadTiles();
-            if (animate) grid.scheduleLayoutAnimation();
+            if (animate && animations && !reducedMotion) grid.scheduleLayoutAnimation();
         }
 
         if (restoreFocus) {
@@ -639,6 +674,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        endDockEdit();
         handler.removeCallbacks(minuteTick);
         if (nowPlaying != null) nowPlaying.stop();
         if (nowCard != null) nowCard.stop();
@@ -678,6 +714,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             finishReorder();
             return;
         }
+        if (dockEditing) {
+            // One step back: from choosing the app to choosing the place, and from there out of the mode.
+            if (dockEditSlot >= 0) {
+                int slot = dockEditSlot;
+                dockEditSlot = -1;
+                dimTiles();
+                reorderHint.setText(R.string.dock_edit_place_hint);
+                focusTile(slot);
+            } else {
+                endDockEdit();
+            }
+            return;
+        }
         // Home screen: Back goes nowhere.
     }
 
@@ -691,10 +740,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
         float pad = 6f * density;        // matches GlassView's glow inset
-        float w = card.getWidth() * AppAdapter.FOCUS_SCALE + 2 * pad;
-        float h = card.getHeight() * AppAdapter.FOCUS_SCALE + 2 * pad;
+        float scale = adapter.focusScale();
+        float w = card.getWidth() * scale + 2 * pad;
+        float h = card.getHeight() * scale + 2 * pad;
         float x = r.exactCenterX() - w / 2f;
-        float y = r.exactCenterY() - h / 2f;
+        float y = r.exactCenterY() - h / 2f - (advancedEffects ? 4f * density : 0f);   // follows the lifted tile
 
         ViewGroup.LayoutParams lp = glass.getLayoutParams();
         if (lp.width != (int) w || lp.height != (int) h) {
@@ -702,7 +752,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             lp.height = (int) h;
             glass.setLayoutParams(lp);
             // GlassView draws its slab inset by pad, i.e. exactly over the zoomed tile: same corners as the tile.
-            glass.setRadius(AppAdapter.cornerRadius(card.getWidth(), density) * AppAdapter.FOCUS_SCALE);
+            glass.setRadius(AppAdapter.cornerRadius(card.getWidth(), density) * scale);
         }
         glassTargetX = x;
         glassTargetY = y;
@@ -711,8 +761,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             springY.cancel();
             glass.setTranslationX(x);
             glass.setTranslationY(y);
-            glass.animate().alpha(1f).setDuration(180).start();
+            if (animations) glass.animate().alpha(1f).setDuration(reducedMotion ? 100 : 180).start();
+            else glass.setAlpha(1f);
             glassShown = true;
+        } else if (!animations) {
+            springX.cancel();
+            springY.cancel();
+            glass.setTranslationX(x);
+            glass.setTranslationY(y);
         } else {
             springX.animateToFinalPosition(x);
             springY.animateToFinalPosition(y - glassScrollShift);
@@ -722,13 +778,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Dock: park it at the bottom of the screen and show the top shelf for this app.
             int decoratedTop = item.getTop() - (int) (6 * density);
             int dy = decoratedTop - grid.getPaddingTop();
-            if (Math.abs(dy) > 1) glide(dy);
+            // Only when the row is actually off: a few pixels' mismatch must not start a scroll on every move.
+            // Calm or no motion jumps there, so the scroll does not fight the highlight.
+            if (Math.abs(dy) > (int) (8 * density)) {
+                if (!animations || reducedMotion) grid.scrollBy(0, dy);
+                else glide(dy);
+            }
             showHero(position, r.top - dy);
         } else {
             hideHero();
             // Scroll just enough so the whole glass (not only the tile) is visible.
             Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
-            grid.requestChildRectangleOnScreen(item, want, false);
+            grid.requestChildRectangleOnScreen(item, want, !animations || reducedMotion);
         }
     }
 
@@ -750,7 +811,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float y = dockTopInRoot - DockDecoration.PAD_Y * density - 26 * density - heroName.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
 
-        if (!heroShown) {
+        if (!animations || reducedMotion) {
+            // Snap the shelf instead of sliding and fading it: each of those frames repaints the full-screen glow.
+            heroName.animate().cancel();
+            ambient.animate().cancel();
+            heroName.setText(label);
+            heroName.setY(y);
+            heroName.setTranslationX(0f);
+            heroName.setAlpha(1f);
+            findViewById(R.id.photoCaption).setAlpha(1f);
+            setAmbient(color);
+            ambient.setAlpha(1f);
+            heroShown = true;
+        } else if (!heroShown) {
             heroName.setText(label);
             heroName.setY(y);
             heroName.setTranslationX(0f);
@@ -840,15 +913,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroShown = false;
         // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
         // the whole screen's colour away.
-        heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
-        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
-        ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
+        if (!animations) {
+            heroName.animate().cancel();
+            ambient.animate().cancel();
+            heroName.setAlpha(0f);
+            findViewById(R.id.photoCaption).setAlpha(0f);
+            ambient.setAlpha(0f);
+            return;
+        }
+        heroName.animate().alpha(0f).setDuration(reducedMotion ? 100 : 260).setInterpolator(GLIDE).start();
+        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(reducedMotion ? 100 : 260).start();
+        ambient.animate().alpha(0f).setDuration(reducedMotion ? 140 : 600).setInterpolator(GLIDE).start();
     }
 
     private void hideGlass() {
         if (!glassShown) return;
         glassShown = false;
-        glass.animate().alpha(0f).setDuration(160).start();
+        glass.animate().cancel();
+        if (animations) glass.animate().alpha(0f).setDuration(reducedMotion ? 100 : 160).start();
+        else glass.setAlpha(0f);
     }
 
     // ---- navigation ------------------------------------------------------------------------------
@@ -963,14 +1046,34 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
-        final PopupWindow popup = glassPopup(panel, (int) (320 * density));
+        final PopupWindow popup = glassPopup(panel, (int) (240 * density));
 
         addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.edit_dock, 1);
+        addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.dock_list, 4);
         addSettingsRow(rows, popup, R.drawable.ic_settings, R.string.system_settings, 2);
         if (moduleCards) addSettingsRow(rows, popup, R.drawable.ic_home_settings, R.string.module_cards, 3);
-        // Switches that stay on the TV (Config.setToggle); the screensaver reads them when it next starts.
+        // Layout and motion (Config.setChoice / setMotion): applied when the menu closes, by rebuilding Home.
         addSeparator(rows);
         Config cfg = Config.load(this);
+        final int[] layout = {cfg.gridColumns, motionLevel(cfg), cfg.advancedEffects ? 1 : 0};
+        final int[] atOpen = layout.clone();
+        addChoiceRow(rows, R.drawable.ic_home_settings, R.string.apps_per_row,
+                () -> String.valueOf(layout[0]), () -> layout[0] = layout[0] >= 7 ? 4 : Math.max(4, layout[0] + 1));
+        int[] motionNames = {R.string.motion_full, R.string.motion_calm, R.string.toggle_off};
+        addChoiceRow(rows, R.drawable.ic_clock, R.string.animations,
+                () -> getString(motionNames[layout[1]]), () -> layout[1] = (layout[1] + 1) % 3);
+        addChoiceRow(rows, R.drawable.ic_clock, R.string.advanced_effects,
+                () -> getString(layout[2] == 1 ? R.string.toggle_on : R.string.toggle_off), () -> layout[2] = 1 - layout[2]);
+        popup.setOnDismissListener(() -> {
+            if (openPopup == popup) openPopup = null;   // replaces glassPopup's listener
+            if (java.util.Arrays.equals(layout, atOpen)) return;
+            Config.setChoice(this, Config.GRID_COLUMNS, layout[0]);
+            Config.setMotion(this, layout[1] != 2, layout[1] == 1);
+            Config.setToggle(this, Config.ADVANCED_EFFECTS, layout[2] == 1);
+            recreate();
+        });
+        // Switches that stay on the TV (Config.setToggle); the screensaver reads them when it next starts.
+        addSeparator(rows);
         if (prayerLat != null) {
             addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_home_prayer, Config.HOME_PRAYER, homePrayer, on -> {
                 homePrayer = on;
@@ -996,21 +1099,49 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
             });
         }
+        // About six rows show at once; the rest scroll into view as focus moves down.
+        int visible = getResources().getDimensionPixelSize(R.dimen.setting_row_height) * 6 + (int) (12 * density);
+        View scroll = panel.findViewById(R.id.scroll);
+        rows.measure(View.MeasureSpec.makeMeasureSpec((int) (240 * density), View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.UNSPECIFIED);
+        if (rows.getMeasuredHeight() > visible) scroll.getLayoutParams().height = visible;
         dropIn(popup, panel, anchor, Gravity.END);
         if (rows.getChildCount() > 0) rows.getChildAt(0).requestFocus();
     }
 
     private void addSettingsRow(LinearLayout rows, PopupWindow popup, int icon, int title, int action) {
-        View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
+        View row = getLayoutInflater().inflate(R.layout.item_setting, rows, false);
         ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
         ((TextView) row.findViewById(R.id.title)).setText(title);
         row.findViewById(R.id.dot).setVisibility(View.GONE);
         row.findViewById(R.id.status).setVisibility(View.GONE);
         row.setOnClickListener(v -> {
             popup.dismiss();
-            if (action == 1) showDockEditor();
+            if (action == 1) startDockEdit();
+            else if (action == 4) showDockEditor();
             else if (action == 2) open(new Intent(Settings.ACTION_SETTINGS));
             else showModuleCards();
+        });
+        rows.addView(row);
+    }
+
+    /** Animations row: 0 full, 1 calm (reduced_motion), 2 off. */
+    private static int motionLevel(Config cfg) {
+        return !cfg.animations ? 2 : cfg.reducedMotion ? 1 : 0;
+    }
+
+    /** A row that steps through a few values in place (OK for the next one); the menu stays open. */
+    private void addChoiceRow(LinearLayout rows, int icon, int title, java.util.function.Supplier<String> value,
+                              Runnable next) {
+        View row = getLayoutInflater().inflate(R.layout.item_setting, rows, false);
+        ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
+        ((TextView) row.findViewById(R.id.title)).setText(title);
+        row.findViewById(R.id.dot).setVisibility(View.GONE);
+        TextView status = row.findViewById(R.id.status);
+        status.setText(value.get());
+        row.setOnClickListener(v -> {
+            next.run();
+            status.setText(value.get());
         });
         rows.addView(row);
     }
@@ -1018,7 +1149,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** A row that switches a setting On and Off in place; the menu stays open. */
     private void addToggleRow(LinearLayout rows, int icon, int title, String key, boolean initial,
                               java.util.function.Consumer<Boolean> changed) {
-        View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
+        View row = getLayoutInflater().inflate(R.layout.item_setting, rows, false);
         ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
         ((TextView) row.findViewById(R.id.title)).setText(title);
         TextView status = row.findViewById(R.id.status);
@@ -1062,8 +1193,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onTileLongPressed(int position) {
-        if (reorderMode || (!adapter.isDockPosition(position) && !adapter.isReorderableAppAt(position))) return;
+        if (dockEditing || reorderMode
+                || (!adapter.isDockPosition(position) && !adapter.isReorderableAppAt(position))) return;
         reorderMode = true;
+        reorderHint.setText(R.string.reorder_hint);
         reorderPosition = position;
         DefaultItemAnimator moveAnimator = new DefaultItemAnimator();
         moveAnimator.setMoveDuration(180L);
@@ -1074,17 +1207,106 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         reorderHint.animate().alpha(1f).translationY(0f).setDuration(180).start();
         View card = tileCardAt(position);
         if (card != null) {
-            card.animate().scaleX(AppAdapter.FOCUS_SCALE * 1.06f)
-                    .scaleY(AppAdapter.FOCUS_SCALE * 1.06f)
+            card.animate().scaleX(adapter.focusScale() * 1.06f)
+                    .scaleY(adapter.focusScale() * 1.06f)
                     .setDuration(180).start();
         }
     }
 
     @Override
     public boolean onTileClicked(int position) {
+        if (dockEditing) {
+            onDockEditOk(position);
+            return true;   // never opens the app while editing
+        }
         if (!reorderMode) return false;
         finishReorder();
         return true;
+    }
+
+    // ---- edit dock -------------------------------------------------------------------------------
+
+    /** Edit dock (Settings menu): focus goes to the first dock place, which OK then chooses. */
+    private void startDockEdit() {
+        if (reorderMode) finishReorder();
+        if (!adapter.isDockPosition(0)) {
+            showDockEditor();   // an empty dock: the list editor can add apps
+            return;
+        }
+        dockEditing = true;
+        dockEditSlot = -1;
+        reorderHint.setText(R.string.dock_edit_place_hint);
+        reorderHint.setVisibility(View.VISIBLE);
+        reorderHint.setAlpha(0f);
+        reorderHint.setTranslationY(10 * density);
+        reorderHint.animate().alpha(1f).translationY(0f).setDuration(180).start();
+        focusTile(0);
+    }
+
+    /**
+     * First OK on a dock tile chooses that place (the other dock tiles dim) and focus moves to the grid; then OK on
+     * any tile puts that app in the place, and the app it replaces takes the chosen app's old spot.
+     */
+    private void onDockEditOk(int position) {
+        if (dockEditSlot < 0) {
+            if (!adapter.isDockPosition(position)) return;
+            dockEditSlot = position;
+            dimTiles();
+            reorderHint.setText(R.string.dock_edit_app_hint);
+            focusTile(adapter.getItemCount() > COLUMNS ? COLUMNS : position);
+            return;
+        }
+        swapIntoDock(dockEditSlot, position);
+    }
+
+    private void swapIntoDock(int slot, int position) {
+        String chosen = adapter.packageAt(position);
+        List<String> dock = adapter.dockApps();
+        if (chosen != null && slot < dock.size() && !chosen.equals(dock.get(slot))) {
+            String replaced = dock.get(slot);
+            List<String> order = adapter.appOrder();
+            int inDock = dock.indexOf(chosen);
+            if (inDock >= 0) {
+                dock.set(inDock, replaced);   // both in the dock: they trade places
+            } else {
+                int at = order.indexOf(chosen);
+                if (at >= 0) order.set(at, replaced);
+                else order.add(replaced);
+            }
+            dock.set(slot, chosen);
+            dockApps = dock;
+            appOrder = order;
+            DockEditor.saveDock(this, dockApps);
+            DockEditor.saveAppOrder(this, appOrder);
+            adapter.setDockApps(dockApps);
+            adapter.setAppOrder(appOrder);
+            reloadTiles();
+        }
+        endDockEdit();
+        lastFocused = slot;
+        lastFocusedKey = adapter.keyAt(slot);
+        grid.post(() -> focusTile(slot));
+    }
+
+    private void endDockEdit() {
+        if (!dockEditing) return;
+        dockEditing = false;
+        dockEditSlot = -1;
+        dimTiles();
+        reorderHint.animate().alpha(0f).translationY(10 * density).setDuration(150)
+                .withEndAction(() -> reorderHint.setVisibility(View.GONE)).start();
+    }
+
+    private void dimTiles() {
+        for (int i = 0; i < grid.getChildCount(); i++) {
+            View item = grid.getChildAt(i);
+            item.setAlpha(tileAlpha(grid.getChildAdapterPosition(item)));
+        }
+    }
+
+    /** Dim in edit-dock mode: the dock tiles other than the chosen place. */
+    private float tileAlpha(int position) {
+        return dockEditSlot >= 0 && position >= 0 && position < COLUMNS && position != dockEditSlot ? 0.45f : 1f;
     }
 
     private View tileCardAt(int position) {
@@ -1096,8 +1318,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!reorderMode) return;
         View selectedCard = tileCardAt(reorderPosition);
         if (selectedCard != null) {
-            selectedCard.animate().scaleX(AppAdapter.FOCUS_SCALE)
-                    .scaleY(AppAdapter.FOCUS_SCALE)
+            selectedCard.animate().scaleX(adapter.focusScale())
+                    .scaleY(adapter.focusScale())
                     .setDuration(160).start();
         }
         reorderMode = false;
@@ -1610,7 +1832,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View line = new View(this);
         line.setBackgroundColor(0x1FFFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) density);
-        int m = (int) (6 * density), h = (int) (12 * density);
+        int m = (int) (5 * density), h = (int) (10 * density);
         lp.setMargins(h, m, h, m);
         rows.addView(line, lp);
     }

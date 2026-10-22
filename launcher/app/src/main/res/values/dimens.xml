@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A Settings menu row (item_setting); the menu shows about six before it scrolls. -->
+    <dimen name="setting_row_height">28dp</dimen>
+</resources>
