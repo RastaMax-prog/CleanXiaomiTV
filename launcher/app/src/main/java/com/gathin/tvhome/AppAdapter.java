@@ -185,7 +185,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             Cards.Card card = cardByPkg.get(pkg);
             if (card != null && !card.component.equals(component)) card = null;
             Drawable banner = loadBanner(pm, ri);
-            Drawable icon = ri.loadIcon(pm);
+            // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
+            // banner skips loading and decoding it.
+            Drawable icon = banner == null ? ri.loadIcon(pm) : null;
             if (card != null) {
                 fresh.add(new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent));
             } else {
@@ -203,7 +205,9 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             Cards.Card card = cardByPkg.get(pkg);
             if (card != null && !card.component.equals(component)) continue;   // the card stands in for this tile
             Drawable banner = loadBanner(pm, ri);
-            Drawable icon = ri.loadIcon(pm);
+            // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
+            // banner skips loading and decoding it.
+            Drawable icon = banner == null ? ri.loadIcon(pm) : null;
             if (card != null) {
                 fresh.add(new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent));
             } else {
