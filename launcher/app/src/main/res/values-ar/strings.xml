@@ -43,7 +43,7 @@
     <string name="home_key_name">زر الرئيسية</string>
     <string name="home_key_description">يجعل زر الرئيسية في جهاز التحكم يفتح هذه الشاشة.</string>
     <string name="card_prompt_title">بطاقة جديدة من %1$s</string>
-    <string name="card_prompt_body">يمكن لتطبيق %1$s عرض بطاقة على شاشتك الرئيسية. إبقاؤها مخفية يترك مربّع التطبيق العادي كما هو.</string>
+    <string name="card_prompt_body">يمكن لتطبيق %1$s عرض بطاقة على شاشتك الرئيسية. إبقاؤها مخفية يزيل التطبيق أيضًا من شاشتك الرئيسية، إلا إذا ثبّتّه في الشريط.</string>
     <string name="card_prompt_names">اسم البطاقة «%1$s»، واسم التطبيق «%2$s».</string>
     <string name="card_prompt_resigned">تم تحديث %1$s بمفتاح توقيع مختلف، لذا لم يعد اختيارك السابق ساريًا. اختر من جديد بشأن بطاقته.</string>
     <string name="card_prompt_relabelled">غيّر %1$s اسم بطاقته منذ أن اخترت. اختر من جديد بشأنها.</string>
