@@ -71,6 +71,12 @@ final class GlassDrawable extends Drawable {
 
     static void draw(Canvas c, RectF rect, float radius, Backdrop backdrop, float screenX, float screenY,
                      float density, int veil, int edgeColor) {
+        draw(c, rect, radius, backdrop, screenX, screenY, density, veil, edgeColor, 255);
+    }
+
+    /** @param alpha the glass body's opacity, 0 to 255: lower lets the sharp picture behind show through. */
+    static void draw(Canvas c, RectF rect, float radius, Backdrop backdrop, float screenX, float screenY,
+                     float density, int veil, int edgeColor, int alpha) {
         // One fill for the body of the glass: the blurred photo (veil already baked in) and the sheen on
         // its upper half, composed in a single shader so the GPU blends this area once, not four times.
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -91,12 +97,14 @@ final class GlassDrawable extends Drawable {
                     Shader.TileMode.CLAMP), sheen, PorterDuff.Mode.SRC_OVER);
         }
         p.setShader(body);
+        p.setAlpha(alpha);
         c.drawRoundRect(rect, radius, radius, p);
         if (veil != 0 && bmp != null) {
             p.setShader(null);
             p.setColor(veil);
             c.drawRoundRect(rect, radius, radius, p);
         }
+        p.setAlpha(255);
         // Edge: the same even line the pills and dock band had before the glass.
         float sw = Math.max(1f, density);
         RectF edge = new RectF(rect);

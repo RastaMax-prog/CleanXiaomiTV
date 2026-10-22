@@ -334,7 +334,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setLayoutManager(glm);
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
-        grid.addItemDecoration(new DockDecoration(COLUMNS, density, backdrop));
+        grid.addItemDecoration(new DockDecoration(COLUMNS, density, backdrop, cfg.dockOpacity));
         backdrop.register(grid);
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));

@@ -28,8 +28,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final RectF rect = new RectF();
     private final Backdrop backdrop;
     private final int[] loc = new int[2];
+    /** The glass body's opacity, 0 to 255 (Config.dockOpacity). */
+    private final int alpha;
 
-    DockDecoration(int dockSize, float density, Backdrop backdrop) {
+    DockDecoration(int dockSize, float density, Backdrop backdrop, int opacityPercent) {
+        this.alpha = Math.round(opacityPercent * 2.55f);
         this.dockSize = dockSize;
         this.density = density;
         this.backdrop = backdrop;
@@ -74,7 +77,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         float radius = 26 * density;
         if (backdrop.bitmap() != null) {
             parent.getLocationOnScreen(loc);
-            GlassDrawable.draw(c, rect, radius, backdrop, loc[0], loc[1], density, 0, GlassDrawable.DOCK_EDGE);
+            GlassDrawable.draw(c, rect, radius, backdrop, loc[0], loc[1], density, 0, GlassDrawable.DOCK_EDGE, alpha);
             return;
         }
         c.drawRoundRect(rect, radius, radius, band);
