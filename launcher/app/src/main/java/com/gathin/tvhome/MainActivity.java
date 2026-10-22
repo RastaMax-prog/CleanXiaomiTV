@@ -145,8 +145,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // scroll moves the glass in lockstep with its tile instead of becoming a moving spring target.
     private float glassScrollShift;
     private boolean glassShown;
-    /** Motion settings (Config, or the Settings menu): animations at all, calm motion, advanced effects. */
-    private boolean animations, reducedMotion, advancedEffects;
+    /** Advanced effects (Config, or the Settings menu): the focused tile lifts, zooms and gets a bright edge. */
+    private boolean advancedEffects;
     // Static so they survive the activity being destroyed while another app is open (low-memory TVs,
     // or Developer options → "Don't keep activities"); they only reset when the process dies.
     private static int lastFocused = 0;
@@ -251,8 +251,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Config cfg = Config.load(this);
         COLUMNS = cfg.columns;
         GRID_COLUMNS = cfg.gridColumns;
-        animations = cfg.animations;
-        reducedMotion = cfg.reducedMotion;
         advancedEffects = cfg.advancedEffects;
         liveTvPkg = cfg.liveTvPackage;
         liveTvAction = cfg.liveTvAction;
@@ -345,10 +343,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setItemAnimator(null);
         grid.addItemDecoration(new DockDecoration(COLUMNS, density, backdrop, cfg.dockOpacity));
         backdrop.register(grid);
-        if (animations) {
-            grid.setLayoutAnimation(new LayoutAnimationController(AnimationUtils.loadAnimation(this,
-                    reducedMotion ? R.anim.tile_enter_reduced : R.anim.tile_enter), reducedMotion ? 0f : 0.06f));
-        }
+        grid.setLayoutAnimation(new LayoutAnimationController(
+                AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         adapter = new AppAdapter(this, this, COLUMNS, cfg, dockApps, appOrder);
         grid.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
             @Override
@@ -408,15 +404,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         for (SpringAnimation s : new SpringAnimation[]{springX, springY}) {
-            if (reducedMotion) {
-                // Stiff and almost critically damped: settles in a few frames instead of oscillating,
-                // and stops once the highlight is within 1.5 px of its tile.
-                s.setSpring(new SpringForce().setStiffness(1400f).setDampingRatio(0.95f));
-                s.setMinimumVisibleChange(1.5f);
-            } else {
-                s.setSpring(new SpringForce().setStiffness(advancedEffects ? 320f : 260f)
-                        .setDampingRatio(advancedEffects ? 0.76f : 0.58f));
-            }
+            s.setSpring(new SpringForce().setStiffness(advancedEffects ? 320f : 260f)
+                    .setDampingRatio(advancedEffects ? 0.76f : 0.58f));
         }
 
         btnInputs = findViewById(R.id.btnInputs);
@@ -432,7 +421,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (advancedEffects) {
             for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) {
                 pill.setOnFocusChangeListener((view, focused) -> view.animate()
-                        .scaleX(focused ? 1.04f : 1f).scaleY(focused ? 1.04f : 1f).setDuration(160).start());
+                        .scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(180).start());
             }
         }
         if (cfg.nowPlaying) {
@@ -610,7 +599,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (rebuild) {
             reloadTiles();
-            if (animate && animations && !reducedMotion) grid.scheduleLayoutAnimation();
+            if (animate) grid.scheduleLayoutAnimation();
         }
 
         if (restoreFocus) {
@@ -744,7 +733,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float w = card.getWidth() * scale + 2 * pad;
         float h = card.getHeight() * scale + 2 * pad;
         float x = r.exactCenterX() - w / 2f;
-        float y = r.exactCenterY() - h / 2f - (advancedEffects ? 4f * density : 0f);   // follows the lifted tile
+        float y = r.exactCenterY() - h / 2f - (advancedEffects ? AppAdapter.LIFT_DP * density : 0f);   // follows the lifted tile
 
         ViewGroup.LayoutParams lp = glass.getLayoutParams();
         if (lp.width != (int) w || lp.height != (int) h) {
@@ -761,14 +750,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             springY.cancel();
             glass.setTranslationX(x);
             glass.setTranslationY(y);
-            if (animations) glass.animate().alpha(1f).setDuration(reducedMotion ? 100 : 180).start();
-            else glass.setAlpha(1f);
+            glass.animate().alpha(1f).setDuration(180).start();
             glassShown = true;
-        } else if (!animations) {
-            springX.cancel();
-            springY.cancel();
-            glass.setTranslationX(x);
-            glass.setTranslationY(y);
         } else {
             springX.animateToFinalPosition(x);
             springY.animateToFinalPosition(y - glassScrollShift);
@@ -779,17 +762,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int decoratedTop = item.getTop() - (int) (6 * density);
             int dy = decoratedTop - grid.getPaddingTop();
             // Only when the row is actually off: a few pixels' mismatch must not start a scroll on every move.
-            // Calm or no motion jumps there, so the scroll does not fight the highlight.
-            if (Math.abs(dy) > (int) (8 * density)) {
-                if (!animations || reducedMotion) grid.scrollBy(0, dy);
-                else glide(dy);
-            }
+            if (Math.abs(dy) > (int) (8 * density)) glide(dy);
             showHero(position, r.top - dy);
         } else {
             hideHero();
             // Scroll just enough so the whole glass (not only the tile) is visible.
             Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
-            grid.requestChildRectangleOnScreen(item, want, !animations || reducedMotion);
+            grid.requestChildRectangleOnScreen(item, want, false);
         }
     }
 
@@ -811,19 +790,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float y = dockTopInRoot - DockDecoration.PAD_Y * density - 26 * density - heroName.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
 
-        if (!animations || reducedMotion) {
-            // Snap the shelf instead of sliding and fading it: each of those frames repaints the full-screen glow.
-            heroName.animate().cancel();
-            ambient.animate().cancel();
-            heroName.setText(label);
-            heroName.setY(y);
-            heroName.setTranslationX(0f);
-            heroName.setAlpha(1f);
-            findViewById(R.id.photoCaption).setAlpha(1f);
-            setAmbient(color);
-            ambient.setAlpha(1f);
-            heroShown = true;
-        } else if (!heroShown) {
+        if (!heroShown) {
             heroName.setText(label);
             heroName.setY(y);
             heroName.setTranslationX(0f);
@@ -913,25 +880,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroShown = false;
         // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
         // the whole screen's colour away.
-        if (!animations) {
-            heroName.animate().cancel();
-            ambient.animate().cancel();
-            heroName.setAlpha(0f);
-            findViewById(R.id.photoCaption).setAlpha(0f);
-            ambient.setAlpha(0f);
-            return;
-        }
-        heroName.animate().alpha(0f).setDuration(reducedMotion ? 100 : 260).setInterpolator(GLIDE).start();
-        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(reducedMotion ? 100 : 260).start();
-        ambient.animate().alpha(0f).setDuration(reducedMotion ? 140 : 600).setInterpolator(GLIDE).start();
+        heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
+        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
+        ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
     }
 
     private void hideGlass() {
         if (!glassShown) return;
         glassShown = false;
-        glass.animate().cancel();
-        if (animations) glass.animate().alpha(0f).setDuration(reducedMotion ? 100 : 160).start();
-        else glass.setAlpha(0f);
+        glass.animate().alpha(0f).setDuration(160).start();
     }
 
     // ---- navigation ------------------------------------------------------------------------------
@@ -1052,24 +1009,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.dock_list, 4);
         addSettingsRow(rows, popup, R.drawable.ic_settings, R.string.system_settings, 2);
         if (moduleCards) addSettingsRow(rows, popup, R.drawable.ic_home_settings, R.string.module_cards, 3);
-        // Layout and motion (Config.setChoice / setMotion): applied when the menu closes, by rebuilding Home.
+        // Layout and effects (Config.setChoice / setToggle): applied when the menu closes, by rebuilding Home.
         addSeparator(rows);
         Config cfg = Config.load(this);
-        final int[] layout = {cfg.gridColumns, motionLevel(cfg), cfg.advancedEffects ? 1 : 0};
+        final int[] layout = {cfg.gridColumns, cfg.advancedEffects ? 1 : 0};
         final int[] atOpen = layout.clone();
         addChoiceRow(rows, R.drawable.ic_home_settings, R.string.apps_per_row,
                 () -> String.valueOf(layout[0]), () -> layout[0] = layout[0] >= 7 ? 4 : Math.max(4, layout[0] + 1));
-        int[] motionNames = {R.string.motion_full, R.string.motion_calm, R.string.toggle_off};
-        addChoiceRow(rows, R.drawable.ic_clock, R.string.animations,
-                () -> getString(motionNames[layout[1]]), () -> layout[1] = (layout[1] + 1) % 3);
         addChoiceRow(rows, R.drawable.ic_clock, R.string.advanced_effects,
-                () -> getString(layout[2] == 1 ? R.string.toggle_on : R.string.toggle_off), () -> layout[2] = 1 - layout[2]);
+                () -> getString(layout[1] == 1 ? R.string.toggle_on : R.string.toggle_off), () -> layout[1] = 1 - layout[1]);
         popup.setOnDismissListener(() -> {
             if (openPopup == popup) openPopup = null;   // replaces glassPopup's listener
             if (java.util.Arrays.equals(layout, atOpen)) return;
             Config.setChoice(this, Config.GRID_COLUMNS, layout[0]);
-            Config.setMotion(this, layout[1] != 2, layout[1] == 1);
-            Config.setToggle(this, Config.ADVANCED_EFFECTS, layout[2] == 1);
+            Config.setToggle(this, Config.ADVANCED_EFFECTS, layout[1] == 1);
             recreate();
         });
         // Switches that stay on the TV (Config.setToggle); the screensaver reads them when it next starts.
@@ -1123,11 +1076,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             else showModuleCards();
         });
         rows.addView(row);
-    }
-
-    /** Animations row: 0 full, 1 calm (reduced_motion), 2 off. */
-    private static int motionLevel(Config cfg) {
-        return !cfg.animations ? 2 : cfg.reducedMotion ? 1 : 0;
     }
 
     /** A row that steps through a few values in place (OK for the next one); the menu stays open. */

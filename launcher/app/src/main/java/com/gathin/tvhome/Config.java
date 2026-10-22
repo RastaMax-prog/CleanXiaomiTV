@@ -46,11 +46,7 @@ final class Config {
     final int rowsBelowDock;
     /** How opaque the dock band's glass is, 0 to 100 (config.xml, dock_opacity); lower shows more of the photo. */
     final int dockOpacity;
-    /** Tile animations at all (config.xml, animations); off, focus and the shelf change without motion. */
-    final boolean animations;
-    /** Calmer motion for weak GPUs (reduced_motion): stiff spring, no overshoot, short fades, no entrance replay. */
-    final boolean reducedMotion;
-    /** A lifted tile, a slight banner zoom and a soft app-open transition (advanced_effects); needs animations. */
+    /** The focused tile lifts, zooms and gets a bright edge, and apps open with a soft transition (advanced_effects). */
     final boolean advancedEffects;
     final boolean shamsiDate;
     final boolean dreamAthkar;
@@ -81,7 +77,7 @@ final class Config {
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int gridColumns, int rowsBelowDock, int dockOpacity,
-                   boolean animations, boolean reducedMotion, boolean advancedEffects,
+                   boolean advancedEffects,
                    boolean shamsiDate, boolean dreamAthkar, boolean homePrayer, boolean dreamPrayer, boolean dreamAnalog, int prayerMethod, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
@@ -96,8 +92,6 @@ final class Config {
         this.gridColumns = gridColumns;
         this.rowsBelowDock = rowsBelowDock;
         this.dockOpacity = dockOpacity;
-        this.animations = animations;
-        this.reducedMotion = reducedMotion;
         this.advancedEffects = advancedEffects;
         this.shamsiDate = shamsiDate;
         this.dreamAthkar = dreamAthkar;
@@ -137,8 +131,6 @@ final class Config {
         int gridColumns = res.getInteger(R.integer.grid_columns);
         int rowsBelow = res.getInteger(R.integer.rows_below_dock);
         int dockOpacity = res.getInteger(R.integer.dock_opacity);
-        boolean animations = res.getBoolean(R.bool.animations);
-        boolean reducedMotion = res.getBoolean(R.bool.reduced_motion);
         boolean advancedEffects = res.getBoolean(R.bool.advanced_effects);
         boolean shamsi = res.getBoolean(R.bool.shamsi_date);
         boolean athkar = res.getBoolean(R.bool.dream_athkar);
@@ -175,8 +167,6 @@ final class Config {
             gridColumns = integer(json, "grid_columns", json.has("columns") ? columns : gridColumns, 1, 8);
             rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
             dockOpacity = integer(json, "dock_opacity", dockOpacity, 0, 100);
-            animations = bool(json, "animations", animations);
-            reducedMotion = bool(json, "reduced_motion", reducedMotion);
             advancedEffects = bool(json, "advanced_effects", advancedEffects);
             shamsi = bool(json, "shamsi_date", shamsi);
             athkar = bool(json, "dream_athkar", athkar);
@@ -203,8 +193,6 @@ final class Config {
         dreamAnalog = toggles.getBoolean(DREAM_ANALOG, dreamAnalog);
         int chosenColumns = toggles.getInt(GRID_COLUMNS, 0);
         if (chosenColumns >= 4 && chosenColumns <= 7) gridColumns = chosenColumns;
-        animations = toggles.getBoolean(ANIMATIONS, animations);
-        reducedMotion = toggles.getBoolean(REDUCED_MOTION, reducedMotion);
         advancedEffects = toggles.getBoolean(ADVANCED_EFFECTS, advancedEffects);
 
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
@@ -214,15 +202,14 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
-                animations, animations && reducedMotion, animations && !reducedMotion && advancedEffects, shamsi, athkar, homePrayer, dreamPrayer, dreamAnalog, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
+                advancedEffects, shamsi, athkar, homePrayer, dreamPrayer, dreamAnalog, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings, background,
                 wallpaper, applied);
     }
 
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
     static final String DREAM_ATHKAR = "dream_athkar", HOME_PRAYER = "home_prayer", DREAM_PRAYER = "dream_prayer",
-            DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns", ANIMATIONS = "animations",
-            REDUCED_MOTION = "reduced_motion", ADVANCED_EFFECTS = "advanced_effects";
+            DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns", ADVANCED_EFFECTS = "advanced_effects";
 
     private static SharedPreferences toggles(Context ctx) {
         return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);
@@ -236,11 +223,6 @@ final class Config {
     /** Saves a number chosen in the Settings menu (apps per row); it is read on the next {@link #load}. */
     static void setChoice(Context ctx, String key, int value) {
         toggles(ctx).edit().putInt(key, value).commit();
-    }
-
-    /** The Animations row's state, written in one go so recreate() reads both switches. */
-    static void setMotion(Context ctx, boolean animations, boolean reducedMotion) {
-        toggles(ctx).edit().putBoolean(ANIMATIONS, animations).putBoolean(REDUCED_MOTION, reducedMotion).commit();
     }
 
     /** Reads and parses the overlay; any problem means "no overlay", never a crash on the home screen. */

@@ -13,6 +13,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
@@ -20,7 +21,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
-import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -133,8 +133,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     /** Never shown as tiles (res/values/config.xml, hidden_apps). */
     private final Set<String> hidden;
     private final boolean showHomeSettings;
-    /** Motion settings (Config): see focusScale and the Holder's focus listener. */
-    private final boolean animations, reducedMotion, advancedEffects;
+    /** Advanced effects (Config): see focusScale and the Holder's focus listener. */
+    private final boolean advancedEffects;
     private final List<Entry> items = new ArrayList<>();
 
     AppAdapter(Context ctx, TileListener listener, int dockSize, Config cfg,
@@ -147,8 +147,6 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         this.appOrder = new ArrayList<>(appOrder);
         this.hidden = new HashSet<>(cfg.hiddenApps);
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
-        this.animations = cfg.animations;
-        this.reducedMotion = cfg.reducedMotion;
         this.advancedEffects = cfg.advancedEffects;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
@@ -282,7 +280,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         nameLp.width = w;
         nameLp.topMargin = h + Math.round(7 * density);
         name.setLayoutParams(nameLp);
-        return new Holder(v, listener, animations, reducedMotion, advancedEffects);
+        return new Holder(v, listener, advancedEffects);
     }
 
     @Override
@@ -311,10 +309,11 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         float lifted = focused && advancedEffects ? 1f : 0f;
         h.card.setScaleX(focused ? focusScale() : 1f);
         h.card.setScaleY(focused ? focusScale() : 1f);
-        h.card.setTranslationY(-4f * lifted * density());
-        h.card.setTranslationZ(8f * lifted * density());
-        h.banner.setScaleX(1f + 0.035f * lifted);
-        h.banner.setScaleY(1f + 0.035f * lifted);
+        h.card.setTranslationY(-LIFT_DP * lifted * density());
+        h.card.setTranslationZ(LIFT_Z_DP * lifted * density());
+        h.card.setForeground(lifted > 0f ? focusEdge(h.card, density()) : null);
+        h.banner.setScaleX(1f + BANNER_ZOOM * lifted);
+        h.banner.setScaleY(1f + BANNER_ZOOM * lifted);
         if (e.banner != null) {
             // Some apps reuse their square phone icon as the TV banner. Cropping that to 16:9 zooms in
             // and blurs it, so show it whole on its own edge colour instead.
@@ -545,13 +544,24 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return Color.HSVToColor(hsv);
     }
 
-    /** How much a focused tile zooms: none without animations, a little more with advanced effects. */
+    /** Advanced effects: how far the focused tile rises (dp), its shadow's height (dp) and its picture's extra zoom. */
+    static final float LIFT_DP = 10f, LIFT_Z_DP = 24f, BANNER_ZOOM = 0.06f;
+
+    /** How much a focused tile zooms: a little more with advanced effects. */
     float focusScale() {
-        return focusScale(animations, advancedEffects);
+        return focusScale(advancedEffects);
     }
 
-    static float focusScale(boolean animations, boolean advancedEffects) {
-        return !animations ? 1f : advancedEffects ? 1.12f : FOCUS_SCALE;
+    static float focusScale(boolean advancedEffects) {
+        return advancedEffects ? 1.14f : FOCUS_SCALE;
+    }
+
+    /** Advanced effects: a bright edge on the focused tile, inside its rounded corners. */
+    static Drawable focusEdge(View card, float density) {
+        GradientDrawable edge = new GradientDrawable();
+        edge.setCornerRadius(cornerRadius(card.getWidth(), density));
+        edge.setStroke(Math.round(2.5f * density), 0xE6FFFFFF);
+        return edge;
     }
 
     private float density() {
@@ -570,7 +580,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         final TextView label;
         final TextView name;
 
-        Holder(View v, TileListener listener, boolean animations, boolean reducedMotion, boolean advancedEffects) {
+        Holder(View v, TileListener listener, boolean advancedEffects) {
             super(v);
             card = v.findViewById(R.id.card);
             banner = v.findViewById(R.id.banner);
@@ -597,40 +607,28 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             });
 
             card.setOnFocusChangeListener((view, focused) -> {
-                float s = focused ? focusScale(animations, advancedEffects) : 1.0f;
+                float s = focused ? focusScale(advancedEffects) : 1.0f;
                 view.animate().cancel();
                 banner.animate().cancel();
-                name.animate().cancel();
-                if (!animations) {
-                    // Animations off: the highlight alone marks the focused tile.
-                    name.setAlpha(focused ? 1f : 0f);
-                    name.setTranslationY(0f);
-                } else if (reducedMotion) {
-                    // No overshoot: the extra frames redraw the banner and the dock band on a weak GPU.
-                    view.animate().scaleX(s).scaleY(s)
-                            .setDuration(focused ? 120 : 80)
-                            .setInterpolator(new DecelerateInterpolator())
-                            .withLayer()
-                            .start();
-                    name.animate().alpha(focused ? 1f : 0f).setDuration(100).start();
-                } else {
-                    // Advanced effects: the tile lifts towards the viewer with a softer bounce, and its banner zooms in.
-                    float lift = focused && advancedEffects ? 1f : 0f;
-                    view.animate().scaleX(s).scaleY(s)
-                            .translationY(-4f * density * lift)
-                            .translationZ(8f * density * lift)
-                            .setDuration(advancedEffects ? (focused ? 220 : 170) : (focused ? 260 : 180))
-                            .setInterpolator(new OvershootInterpolator(focused ? (advancedEffects ? 0.7f : 1.6f) : 0f))
-                            .withLayer()
-                            .start();
-                    if (advancedEffects) {
-                        banner.animate().scaleX(1f + 0.035f * lift).scaleY(1f + 0.035f * lift)
-                                .setDuration(280).start();
-                    }
-                    name.animate().alpha(focused ? 1f : 0f)
-                            .translationY(focused ? density * 4f : -density * 6f)
-                            .setDuration(220).start();
+                // Advanced effects: the tile rises towards the viewer on a deeper shadow with a softer bounce, gets a
+                // bright edge, and its picture zooms in.
+                float lift = focused && advancedEffects ? 1f : 0f;
+                view.animate().scaleX(s).scaleY(s)
+                        .translationY(-LIFT_DP * density * lift)
+                        .translationZ(LIFT_Z_DP * density * lift)
+                        .setDuration(advancedEffects ? (focused ? 240 : 170) : (focused ? 260 : 180))
+                        .setInterpolator(new OvershootInterpolator(focused ? (advancedEffects ? 0.9f : 1.6f) : 0f))
+                        .withLayer()
+                        .start();
+                if (advancedEffects) {
+                    view.setForeground(focused ? focusEdge(view, density) : null);
+                    banner.animate().scaleX(1f + BANNER_ZOOM * lift).scaleY(1f + BANNER_ZOOM * lift)
+                            .setDuration(300).start();
                 }
+                name.animate().cancel();
+                name.animate().alpha(focused ? 1f : 0f)
+                        .translationY(focused ? density * 4f : -density * 6f)
+                        .setDuration(220).start();
                 int pos = getBindingAdapterPosition();
                 if (focused && listener != null && pos != RecyclerView.NO_POSITION) {
                     listener.onTileFocused(pos, view);
