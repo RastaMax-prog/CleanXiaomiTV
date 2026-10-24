@@ -75,9 +75,9 @@
     <string name="vpn_app" translatable="false">org.amnezia.vpn</string>
     <!-- Weather above the date, from Open-Meteo (free, no account or key; only these coordinates are
          sent). Leave the latitude empty to hide it. -->
-    <string name="weather_latitude" translatable="false">47.2225</string>
-    <string name="weather_longitude" translatable="false">39.7187</string>
-    <string name="weather_place" translatable="false">Ростов-на-Дону</string>
+    <<string name="weather_latitude" translatable="false"></string>
+<string name="weather_longitude" translatable="false"></string>
+<string name="weather_place" translatable="false"></string>
     <!-- Grid rows left visible under the dock on the home screen. 0 = dock sits at the very bottom. -->
     <integer name="rows_below_dock">0</integer>
     <!-- How opaque the dock band's glass is over the photo or wallpaper, 0 to 100: 100 is the solid frosted
